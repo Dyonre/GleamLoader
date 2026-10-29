@@ -25,7 +25,8 @@ In the base game the Jab (row `004`) has `m_iFrameBuildUp` 10 (frames until it h
   "edits": [
     { "table": "attacks", "row": "004", "set": { "m_iFrameBuildUp": 6, "m_fDamageMax1": 55.0 } },
 
-    { "table": "attacks", "add": "FastJabPlus", "copy_of": "004", "set": {
+    { "table": "attacks", "add": "FastJabPlus", "copy_of": "004", "learn": "always", "set": {
+        "m_Name": "FastJabPlus",
         "m_RealAttackName": "INVTEXT(\"Fast Jab Plus\")",
         "m_eStartQuadrant": "BackRight",
         "m_iFrameBuildUp": 4
@@ -35,6 +36,8 @@ In the base game the Jab (row `004`) has `m_iFrameBuildUp` 10 (frames until it h
 ```
 
 3. Start the game. That is all: no pak, no tool, no cooking.
+
+The new move sets `m_Name` to its own row name (the game identifies a move by it) and `"learn": "always"`, which makes it appear in the deck editor without editing your save.
 
 What happened: when the game loaded its attack table, the loader changed row `004` (the Jab) and added a new row named `FastJabPlus` that starts as a copy of the Jab. Check `LanNative\rows.txt` (in `Absolver\Binaries\Win64\`): it says how many edits applied and lists any that failed, with the reason.
 

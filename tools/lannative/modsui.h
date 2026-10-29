@@ -1,4 +1,4 @@
-// modsui.h - the text of the F1 menu's "Mods" page (pure formatting, no engine calls).
+// Text of the F1 menu's "Mods" page (pure formatting, no engine calls).
 // The mod loader (modglue.inc) fills one ModInfo per mod folder while it loads; lannative.c adds the live parts (plugin faults, content conflicts, safe mode,
 // the last hot reload) and asks modsui_build for the lines. The first `nactions` lines are actions (Reload content, plugin menu items); the rest only informs.
 #ifndef LANNATIVE_MODSUI_H

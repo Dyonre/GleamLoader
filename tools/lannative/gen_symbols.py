@@ -16,7 +16,7 @@ USAGE = ("usage: python gen_symbols.py <symbols_all.txt> [<out symbols.bin>]\n"
          "       python gen_symbols.py --probe <rva hex> ...\n"
          "symbols_all.txt is the output of: symtool <path to Absolver-Win64-Shipping.exe> dumpall\n"
          "The game exe is found through ABSOLVER_EXE (full path) or ABSOLVER_GAME (the folder that holds Absolver.exe).")
-def find_exe():   # the game exe: ABSOLVER_EXE (full path) or ABSOLVER_GAME (the folder that holds Absolver.exe)
+def find_exe():
     p = os.environ.get("ABSOLVER_EXE") or (os.path.join(os.environ["ABSOLVER_GAME"], "Absolver", "Binaries", "Win64", "Absolver-Win64-Shipping.exe") if os.environ.get("ABSOLVER_GAME") else "")
     if not p or not os.path.isfile(p): sys.exit(USAGE + "\nAbsolver-Win64-Shipping.exe not found: set ABSOLVER_EXE or ABSOLVER_GAME.")
     return p
@@ -55,7 +55,7 @@ def stolen_len(rva, size):
     if n < 14 or n > 24 or n > size: return 0, b""
     return n, code[:n]
 
-if len(sys.argv) > 1 and sys.argv[1] == "--probe":                  # gen_symbols.py --probe 8ADC30 ...  : stolen length and bytes of arbitrary RVAs
+if len(sys.argv) > 1 and sys.argv[1] == "--probe":
     for a in sys.argv[2:]:
         st, b = stolen_len(int(a, 16), 4096); print(a, st, b.hex(" "))
     sys.exit(0)

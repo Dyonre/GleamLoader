@@ -1,4 +1,4 @@
-// testkit.h - pure logic of the test_* functions (AbsApi 2.6: test_heal, test_attack, test_guard, ...). No engine calls.
+// Pure logic of the test_* functions (AbsApi 2.6: test_heal, test_attack, test_guard, ...). No engine calls.
 // The engine-facing half is testkit.inc. Background: docs\PLUGIN-API.md "Functions for automated checks".
 #ifndef LANNATIVE_TESTKIT_H
 #define LANNATIVE_TESTKIT_H
@@ -48,7 +48,7 @@ static int tk_daa_check(const uint8_t *b, int input, int quadrant, uint64_t name
     return b[0x70] == (uint8_t)input && b[0x71] == (uint8_t)quadrant && nm == name && b[TK_DAA_FORCE] == 0 && b[0x81] == 5;
 }
 
-// ----- UObject -> FWeakObjectPtr values are written by the engine's own function; this only validates a pointer before it is used as an object
+// Plausibility check for a pointer before it is used as an object.
 static int tk_ptr_ok(const void *p) { return p && (uintptr_t)p > 0x10000 && (uintptr_t)p < 0x00007FFFFFFFFFFFull; }
 
 // ----- an attack row's m_Anim soft path, accepted for StaticLoadObject only as "/Root/.../Pkg.Obj" (not None/empty, no spaces or quotes, an object part after the last '/')

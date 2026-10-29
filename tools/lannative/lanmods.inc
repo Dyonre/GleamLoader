@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // LAN mod check (included by lannative.c after modglue.inc). Logic and text are in lanmods.h (pure code); this file only talks to the engine.
 //   joiner -> host : the join URL carries ?LNMods=<fingerprint of the gameplay mods>?LNModL=<names>      (read_join_url)
 //   host           : hooks AGameModeBase::PreLogin and AAdversarialGameMode::PreLogin (PvP does not call the base one), compares, warns on screen,
@@ -188,8 +187,12 @@ static void hk_clientmsg(void *pc, void *msg, uint64_t type, float seconds) {
 }
 // ----- self-test (F11): runs the REAL engine functions with crafted input so the whole check can be tried on one PC (no second player needed).
 // LanNative\lmtest.txt, one command per line:   join <URL options>  -> AGameModeBase::PreLogin on this world's game mode (host side, needs a hosted or single-player world)
+//                                               joinfrom <ip> <URL options> -> the same PreLogin with <ip>:0 as the peer address
+//                                               url                 -> logs the join URL menu Join would send
 //                                               msg <text>          -> APlayerController::ClientMessage on this PC's own controller (joiner side, shows the warning)
-// No file = F11 does nothing. Nothing is sent over the network and no file is written.
+//                                               tbl, rowget, rowset, rowapply, rowprobe, objrt, objdump, rowdump, rowfull, rowprops, objget, objset -> rows_command
+//                                               (rowedit.inc); rowset / objset change live game memory, rowdump / rowfull write files
+// No file = F11 does nothing. Nothing is sent over the network.
 static LONG lm_report_fault(EXCEPTION_POINTERS *ep, const char *what) {
     uint64_t a = (uint64_t)(uintptr_t)ep->ExceptionRecord->ExceptionAddress, base = (uint64_t)(uintptr_t)g_base;
     logf_("mod check self-test: %s faulted: code 0x%08lX at %s+0x%llX, params %llX %llX", what, ep->ExceptionRecord->ExceptionCode, (a >= base && a < base + g_exe_size) ? "exe" : "elsewhere",

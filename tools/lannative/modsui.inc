@@ -1,5 +1,4 @@
-// ---------------------------------------------------------------------------------------------------------------------
-// modsui.inc - the F1 menu's "Mods" page, plugin menu items (AbsApi::add_menu_item) and hot reload triggers (included by lannative.c after content.inc).
+// The F1 menu's "Mods" page, plugin menu items (AbsApi::add_menu_item) and hot reload triggers (included by lannative.c after content.inc).
 //   F2          opens the menu on the Mods page: safe-mode state, load order, every mod (loaded / off / skipped with the reason), conflicts, content registry state, plugin faults, last reload
 //   hot reload: content_reload + rows_reload, run from the first line of the Mods page, from LanNative\reload.txt (create the file: it is read once a second, deleted, and the result
 //               lands in LanNative\reload_result.txt) and from AbsApi::reload_content

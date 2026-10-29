@@ -86,7 +86,7 @@ static int lm_has_name(const char *list, const char *name, size_t n) {
     }
     return 0;
 }
-// names in a that are not in b, '+'-joined into out ("" if none)
+// names in a that are not in b, ','-joined into out ("" if none)
 static void lm_only_in(const char *a, const char *b, char *out, size_t cap) {
     size_t w = 0; out[0] = 0;
     for (const char *p = a; *p;) {

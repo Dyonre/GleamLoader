@@ -1,5 +1,4 @@
-// Pure byte-level part of the Forsaken parry patch. Kept free of Win32 so the
-// offline fake-memory test can prove that a different game build is never changed.
+// Pure byte-level part of the Forsaken parry patch, free of Win32.
 #ifndef LANNATIVE_PARRYFIX_H
 #define LANNATIVE_PARRYFIX_H
 

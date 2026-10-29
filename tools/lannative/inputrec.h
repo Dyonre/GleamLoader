@@ -1,4 +1,4 @@
-// inputrec.h - pure encoder / decoder of the input + state RECORDER (loader feature `input_rec`, glue inputrec.inc).
+// Pure encoder / decoder of the input + state RECORDER (loader feature `input_rec`, glue inputrec.inc).
 // No game access, no Windows, no allocation.
 //
 // A recording is JSONL, one object per line, schema IR_SCHEMA. The FIRST line is the session header (type "header") with the personal-data marker.
@@ -41,7 +41,6 @@ static int ir_pose_changed(const IrPose *a, const IrPose *b) {
     return fabsf(a->x - b->x) >= IR_POSE_EPS || fabsf(a->y - b->y) >= IR_POSE_EPS || ir_yaw_diff(a->yaw, b->yaw) >= IR_YAW_EPS;
 }
 
-// ---- small helpers
 static long ir_frame(double t) { return t < 0 ? 0 : (long)floor(t * 30.0 + 1e-9); }
 // 8-way direction of a stick / WASD vector (x right, y forward), dead zone 0.3: 0 none, 1 N, 2 NE, 3 E, 4 SE, 5 S, 6 SW, 7 W, 8 NW
 static int ir_dir8(float x, float y) {
@@ -84,7 +83,7 @@ static int ir_file_name(const char *stamp, const char *safe_char, int part, char
 static int ir_should_rotate(long long file_bytes, long long add, long long cap) { return cap > 0 && file_bytes > 0 && file_bytes + add > cap; }
 static int ir_dir_full(long long dir_bytes, long long cap) { return cap > 0 && dir_bytes >= cap; }
 
-// ---- encoder (returns the length written without the newline it appends; -1 = did not fit)
+// Encoders return the length written without the newline they append; -1 = did not fit.
 static int ir_put_str(char *o, int n, int cap, const char *s) {           // JSON string with escapes
     if (n < 0 || n >= cap) return -1; o[n++] = '"';
     for (const unsigned char *p = (const unsigned char *)(s ? s : ""); *p; p++) {
@@ -141,7 +140,7 @@ static int ir_enc_event(char *o, int cap, const char *type, double t, const char
     return ir_end(o, n, cap);
 }
 
-// ---- decoder (only what the encoder writes: flat keys, numbers, strings, number arrays)
+// Decoder: only what the encoder writes (flat keys, numbers, strings, number arrays).
 typedef struct { char type[16]; double t; long f; char k[48]; int e, gp; float v; IrObs obs; char who[4], oth[4], row[32], s[260]; int a, b; float x; int schema; char personal[160]; } IrRec;
 static const char *ir_find(const char *line, const char *key) {           // pointer just after "key": (top level only is fine: keys are unique per line)
     char pat[40]; snprintf(pat, sizeof pat, "\"%s\":", key); const char *p = strstr(line, pat); return p ? p + strlen(pat) : NULL;
@@ -188,7 +187,7 @@ static int ir_dec_line(const char *line, IrRec *r) {
     return 0;
 }
 
-// ---- in-memory buffer (the loader flushes it to the file)
+// In-memory buffer; the loader flushes it to the file.
 #define IR_BUF_CAP (64 * 1024)
 #define IR_FLUSH_AT (48 * 1024)
 typedef struct { char b[IR_BUF_CAP]; int n; long long dropped; } IrBuf;

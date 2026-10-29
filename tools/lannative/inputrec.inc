@@ -1,9 +1,8 @@
-// ---------------------------------------------------------------------------------------------------------------------
-// inputrec.inc - the input + state RECORDER. Loader feature `input_rec`, default OFF: with it off NOTHING is hooked or written.
+// The input + state RECORDER. Loader feature `input_rec`, default OFF: with it off NOTHING is hooked or written.
 // Included by content.inc after defense_ev.inc (uses api_p_on_defense); init from content_init: ir_init(a). Pure encoder / decoder: inputrec.h.
 //
-// PERSONAL DATA: a recording is the player's own play. It is written ONLY to <loader folder>\recordings\ on this PC, every file starts with a header line that says so,
-// the folder is gitignored (recordings/, *.jsonl). Nothing here uploads or sends anything.
+// PERSONAL DATA: a recording is the player's own play. It is written ONLY to a subfolder of the loader folder on this PC (input_rec_dir, default
+// recordings\), every file starts with a header line that says so; recordings/ and *.jsonl are gitignored. Nothing here uploads or sends anything.
 //
 // What is recorded (schema in inputrec.h):
 //   key   / axis  : hooks on APlayerController::InputKey / InputAxis (engine, 0x1671010 / 0x1670F60), local player controller only. AFightingPlayerController::InputKey forwards
@@ -18,9 +17,8 @@
 // Cost: QueryPerformanceCounter around every hook body and the sampler, logged every 30 s ("inputrec: cost ...") next to the loader's perf: lines.
 // Writes: 64 KB buffer, flushed when 48 KB full, every 2 s, at world change and at exit. Per-file cap input_rec_file_mb (default 64) -> a new part file;
 // folder budget input_rec_dir_mb (default 2048): when full the recorder STOPS (it never deletes recordings).
-// config.txt: input_rec = on|1 (default off), input_rec_hz (30), input_rec_file_mb (64), input_rec_dir_mb (2048),
+// config.txt: input_rec = on|1 (default off), input_rec_dir (recordings), input_rec_hz (30), input_rec_file_mb (64), input_rec_dir_mb (2048),
 //             bot_reads_inputs = on (default OFF; development only, never in a package).
-// ---------------------------------------------------------------------------------------------------------------------
 #include "inputrec.h"
 
 static const AbsApi *IR_API;

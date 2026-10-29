@@ -1,6 +1,6 @@
 #ifndef LANNATIVE_JOINGUARD_H
 #define LANNATIVE_JOINGUARD_H
-// Join protection for a hosting PC (pure logic, tested in test/modloader_test.c). Without it anybody who can reach UDP 7777 can connect to the game's listen server.
+// Join protection for a hosting PC (pure logic). Without it anybody who can reach UDP 7777 can connect to the game's listen server.
 // The host decides in PreLogin, before the engine creates a player, using only the join URL's options and the peer address string the engine passes ("ip:port").
 //   joinprotect = key (default) | open      key: a joiner must send ?LNKey=<key>;  open: no key (the other checks below still apply)
 //   joinkey     = <4-32 chars A-Z a-z 0-9 - _>   (absent: LanNative creates a random one and keeps it in LanNative\joinkey.txt)

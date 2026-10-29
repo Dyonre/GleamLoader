@@ -1,11 +1,11 @@
-// ---------------------------------------------------------------------------------------------------------------------
-// testkit.inc - the test_* functions, API 2.6 (included by secore.inc before se_fill_api). Drivers that run a fight WITHOUT a keyboard and leave nothing broken:
+// The test_* functions, API 2.6 and 2.8 (included by secore.inc before se_fill_api). Drivers that run a fight WITHOUT a keyboard and leave nothing broken:
 //   test_heal / test_set_invincible   put a character right again (health, guard, down state, invincibility)
 //   test_attack                        make any AFightingCharacter (player, NPC, training dummy) perform an attack row through the game's own attack order
 //   test_guard                         raise / drop the guard of a character
 //   test_teleport / test_get_location  place characters next to each other (the training dummy stands ~740 uu from the player)
 //   test_spawn_npc                     the loader's NPC spawn chain (AAISpawner::BPF_WantsSpawn), then place the new character
-// How an attack is launched (UAttackComponent::PrepareToLaunchAttack, as UAttackBTTask::LaunchAttack does it): the AI's attack task builds a
+//   test_dodge / test_ai / test_hittable / test_get_forward   dodge, stop / restart an NPC's behaviour tree, the AI hit flag, facing direction
+// How an attack is launched (as UAttackBTTask::LaunchAttack does it): the AI's attack task builds a
 // DelayedActionAttack {input action, quadrant, flags, attack FName, m_bForceDebugPlay} and hands it to UAttackComponent::PrepareToLaunchAttack, which cancels running attack orders, plays
 // an FNetOrderStructAttack through ABaseCharacter::PlayOrder and runs the attack. With m_bForceDebugPlay the combo deck (UComboManager) is bypassed, so ANY row of the attack table plays.
 // Pure logic and the object layout: testkit.h. Every native call is byte-checked first and runs inside a guard; game thread only.
@@ -49,7 +49,7 @@ static int tk_gate(const AbsApi *self, const char *what, void *ch) {
 }
 static void *tk_comp(const AbsApi *self, void *ch, const char *prop) { void **pp = api_p_prop_ptr(self, ch, prop); return pp && tk_ptr_ok(*pp) ? *pp : NULL; }
 
-// ----- state: AbsCharInfo.invincible / is_down / guarding / attacking
+// ----- state: AbsCharInfo.invincible
 static int tk_invincible(const AbsApi *self, void *ch) {
     void *hc = tk_comp(self, ch, "m_HealthComponent"); if (!hc || !tk_inv_offset_ok()) return -1;
     return *((uint8_t *)hc + TK_OFF_INVINCIBLE) != 0;
@@ -128,7 +128,6 @@ static int se_row_anim_ensure(const AbsApi *self, const char *table_path, const 
     } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("plugin %s: row %s animation: EXCEPTION 0x%08lX", tk_who(self), row, GetExceptionCode()); r = -1; }
     return r;
 }
-// ----- test_attack
 static int api_p_test_attack(const AbsApi *self, void *atk, const char *attack, void *target) {
     if (!tk_gate(self, "test_attack", atk)) return 0;
     int deck = attack && !strcmp(attack, "@deck");                                          // "@deck": the first attack of the character's own deck in its current stance, through the normal combo path
@@ -219,7 +218,7 @@ static int api_p_test_ai(const AbsApi *self, void *ch, int enabled) {
     if (!tk_gate(self, "test_ai", ch)) return 0; int ok = 0;
     __try {
         void *ctl = tk_comp(self, ch, "Controller"); void **bp = ctl ? api_p_prop_ptr(self, ctl, "BrainComponent") : NULL; void *brain = bp && tk_ptr_ok(*bp) ? *bp : NULL;
-        if (!brain && ctl) { void **mp = api_p_prop_ptr(self, ctl, "m_BehaviorComp"); if (mp && tk_ptr_ok(*mp)) brain = *mp; }     // FightingAIController keeps its tree in m_BehaviorComp; BrainComponent stays null
+        if (!brain && ctl) { void **mp = api_p_prop_ptr(self, ctl, "m_BehaviorComp"); if (mp && tk_ptr_ok(*mp)) brain = *mp; }
         if (!brain) { char cn[100] = "-"; if (ctl) se_name_of(*(void **)((uint8_t *)ctl + 0x10), cn, sizeof cn); logf_("plugin %s: test_ai(%p): no AI brain (controller %p of class %s, BrainComponent slot %p -> %p)", tk_who(self), ch, ctl, cn, (void *)bp, bp ? *bp : NULL); return 0; }
         if (enabled) { void *f = api_p_find_function(self, brain, "RestartLogic"); ok = f && api_p_call_params(self, brain, f, NULL, NULL); }
         else { void *f = api_p_find_function(self, brain, "StopLogic"); wchar_t why[] = L"testkit"; SeFString fs = { why, 8, 8 }; void *args[1] = { &fs }; ok = f && api_p_call_params(self, brain, f, args, NULL); }

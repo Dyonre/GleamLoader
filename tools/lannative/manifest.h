@@ -106,7 +106,7 @@ static void mf_resolve(const Manifest *mf, const int *enabled, int n, int our_ap
     }
 }
 
-// ---- pak supersedes. Mod J "supersedes" the pak name P when mf[J].sup lists P. A pak P of mod I (I != J) is then NOT mounted when J is in the load order
+// Pak supersedes: mod J "supersedes" the pak name P when mf[J].sup lists P. A pak P of mod I (I != J) is then NOT mounted when J is in the load order
 // (status MF_OK) and ships at least one pak itself (has_pak[J]): the typical case is a mod that ships a superset of another mod's attacks-table pak. Names compare case-insensitively
 // with or without ".pak". If both mods list P (each supersedes the other's copy) the one that comes LATER in the load order keeps its pak. Returns the superseding mod's index or -1.
 static int mf_name_eq(const char *a, const char *b) {

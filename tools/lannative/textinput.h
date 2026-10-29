@@ -1,4 +1,4 @@
-// Pure helpers for the in-game "type the join address" box (tested in test/logic_test.c): which characters a key press makes, and the edit buffer.
+// Pure helpers for the in-game "type the join address" box: which characters a key press makes, and the edit buffer.
 // lannative.c polls the keys (GetAsyncKeyState edges) and feeds them here; only characters that can be part of a host address are accepted.
 #ifndef LANNATIVE_TEXTINPUT_H
 #define LANNATIVE_TEXTINPUT_H

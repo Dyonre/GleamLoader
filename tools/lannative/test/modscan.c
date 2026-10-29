@@ -1,5 +1,5 @@
 // modscan <ModsFolder> : offline conflict report using the same code as the in-game loader (read-only; never touches the game).
-// Order = folder names sorted (or loadorder.txt if present). Usage: modscan.exe C:\path\to\Mods
+// Order = folder names sorted (loadorder.txt is not read). Usage: modscan.exe C:\path\to\Mods
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "../modconf.h"

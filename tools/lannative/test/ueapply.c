@@ -1,4 +1,4 @@
-// ueapply <vanilla objdump.txt> <rows.json> <object path> <out dir>
+// ueapply <vanilla objdump.txt> <rows.json> <object path> <out file>
 // Offline check for object edits: for every property of that object, apply the ops of the rows.json (in file order) to the vanilla property text with the same
 // splicer the game uses (uetext.h) and write "<prop> = <text>" lines. Compare the output with a dump of the modded game state to prove the ops reproduce it.
 #include <stdio.h>

@@ -3,7 +3,7 @@
 // Scripts: Mods\<mod>\scripts\*.lua of every ENABLED mod, in the loader's load order (loadorder.txt + mod.json requires / after, manifest.h), files by name.
 // Each mod runs in its own environment (globals are per mod; the libraries and `abs` are shared). Sandbox, memory cap and instruction budget: luasandbox.h.
 // Event bus: abs.on(name, fn) / abs.emit(name, ...). Engine events (registered with the loader on first use): tick, world, hit, hit_pre, attack, death, defense, weapon,
-// style, menu; plus "ready" after all scripts loaded. A handler that errors 3 times is removed (logged). Hot reload: script files are polled every second; any change
+// style, menu; plus "ready" after all scripts loaded and "character" when the player's character appears. A handler that errors 3 times is removed (logged). Hot reload: script files are polled every second; any change
 // restarts the Lua state and reloads every script (timers and handlers of the old state are dropped). REPL: write Lua into <LuaHost folder>\repl_in.txt; the host runs it
 // within a second, logs the result and appends it to repl_out.txt. F1 > Mods page: "reload scripts", "status".
 // plugin.cfg: budget = instructions per call (default 2000000), memory_mb = 64, reload = on, repl = on.
@@ -27,7 +27,7 @@ static int g_errors, g_loaded, g_reloads;
 #include "luabus.h"
 #include "luasave.h"
 
-// ---------------------------------------------------------------- helpers
+// ---- helpers
 static void *ud_arg(lua_State *S, int i) { return lua_islightuserdata(S, i) ? lua_touserdata(S, i) : NULL; }
 static void push_ptr(lua_State *S, void *p) { if (p) lua_pushlightuserdata(S, p); else lua_pushnil(S); }
 static void *player(void) { void *pc = A->get_local_player_controller(A), *pawn = NULL, *f = pc ? A->find_function(A, pc, "K2_GetPawn") : NULL; if (f) A->call_function_params(A, pc, f, NULL, &pawn); return pawn; }
@@ -35,7 +35,7 @@ static void *char_arg(lua_State *S, int i) { return lua_isnoneornil(S, i) ? play
 static const char *outcome_name(int o) { static const char *n[] = { "hit", "guarded", "guard_broken", "absorbed", "parried", "dodged", "no_effect" }; return o >= 0 && o < 7 ? n[o] : "?"; }
 static const char *defense_name(int t) { static const char *n[] = { "guard", "guard_break", "absorb", "parry", "deflect", "dodge", "avoid" }; return t >= 0 && t < 7 ? n[t] : "?"; }
 
-// ---------------------------------------------------------------- abs.* (C)
+// ---- abs.* (C)
 static int l_log(lua_State *S) {                                            // abs._log(mod, ...)
     int n = lua_gettop(S); luaL_Buffer b; luaL_buffinit(S, &b);             // gettop first: buffinit may push a placeholder
     for (int i = 2; i <= n; i++) { if (i > 2) luaL_addchar(&b, ' '); luaL_tolstring(S, i, NULL); luaL_addvalue(&b); }
@@ -121,7 +121,7 @@ static int l_bind(lua_State *S) {                                           // a
     kb_refresh(0); char k[16]; kb_key_name(g_kb.b[i].vk, k, sizeof k); lua_pushstring(S, k); return 1;
 }
 
-// ---------------------------------------------------------------- engine events -> bus (registered once per process on first use; they dispatch into the CURRENT state)
+// ---- engine events -> bus (registered once per process on first use; they dispatch into the CURRENT state)
 static int dispatch_begin(const char *name) {                            // pushes __dispatch + name; 0 if nobody listens
     if (!L) return 0; lua_getglobal(L, "__count"); lua_pushstring(L, name);
     if (ls_call(L, 1, 1, 10000)) { lua_pop(L, 1); return 0; } int n = (int)lua_tointeger(L, -1); lua_pop(L, 1); if (!n) return 0;
@@ -184,7 +184,7 @@ static int l_want(lua_State *S) {                                           // a
     done |= 1u << bit; A->log(A, "luahost: engine event '%s' registered (%s)", n, rc == 0 ? "ok" : "FAILED"); return 0;
 }
 
-// ---------------------------------------------------------------- scripts: discovery in the loader's order, (re)load
+// ---- scripts: discovery in the loader's order, (re)load
 static char *slurp(const char *p, DWORD *sz) { HANDLE h = CreateFileA(p, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL); if (h == INVALID_HANDLE_VALUE) return NULL;
     DWORD n = GetFileSize(h, NULL), r = 0; char *t = n < (4u << 20) ? malloc(n + 1) : NULL; if (t && (!ReadFile(h, t, n, &r, NULL) || r != n)) { free(t); t = NULL; } CloseHandle(h); if (t) t[n] = 0; if (sz) *sz = n; return t; }
 static int cmpname(const void *a, const void *b) { return _stricmp(((const Script *)a)->path, ((const Script *)b)->path); }
@@ -252,7 +252,7 @@ static void load_all(const char *why) {
     char_check(1);                                                          // a reload while a character is loaded: "character" again
 }
 
-// ---------------------------------------------------------------- hot reload + REPL (1 s poll on the game thread)
+// ---- hot reload + REPL (1 s poll on the game thread)
 static void repl_run(void) {
     DWORD sz; char *t = slurp(g_repl_in, &sz); if (!t) return; DeleteFileA(g_repl_in);
     while (sz && (t[sz - 1] == '\n' || t[sz - 1] == '\r' || t[sz - 1] == ' ')) t[--sz] = 0;            // one log line

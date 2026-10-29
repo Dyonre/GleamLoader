@@ -1,5 +1,5 @@
 // luabus.h - the Lua side of LuaHost's event bus and per-mod environments (a text chunk run in the sandbox after `abs` exists). Used by plugin.c.
-// Needs from C: abs._want(name) (first handler of a name), abs._error(mod, event, message, count), abs._log(mod, ...), abs._kv_get/_kv_set(key[, value]), abs._timer(mod, s, repeat, fn).
+// Needs from C: abs._want(name) (first handler of a name), abs._error(mod, event, message, count), abs._log(mod, ...), abs._kv_get/_kv_set(key[, value]), abs._timer(mod, s, repeat, fn), abs._bind(mod, action, key, fn, label).
 #ifndef LUAHOST_BUS_H
 #define LUAHOST_BUS_H
 static const char PRELUDE[] =

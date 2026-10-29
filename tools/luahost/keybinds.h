@@ -1,5 +1,5 @@
 // keybinds.h - keybind registry: key names, a user remap file, conflict detection. Pure code, no Windows calls.
-// Used by LuaHost for abs.bind; written so the loader (secore.inc api_p_on_key) can use the same table for C plugins.
+// Used by LuaHost for abs.bind.
 //   Binding:  owner (mod / plugin), action id, label, default key.
 //   Remap file (one per line, '#' comments):   <owner>.<action> = <key> | off       e.g.  LuaDemo.toggle = F7
 //   Keys: F1..F24, A..Z, 0..9, NUMPAD0..NUMPAD9, and 0x01..0xFE. Names are case-insensitive.

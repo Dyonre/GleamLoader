@@ -136,7 +136,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmd, int show) {
     logf_(L"start: self=%ls root=%ls args=%d", self, root, argc - 1);
     ensure_mods_dir(root);
     int migrated = migrate_foreign_paks(root);
-    if (has_arg(argc, argv, L"--migrate")) {       // installer mode: tidy up and exit without starting the game
+    if (has_arg(argc, argv, L"--migrate")) {       // tidy up and exit without starting the game
         logf_(L"migrate: done, %d pak(s) moved", migrated); return 0;
     }
 

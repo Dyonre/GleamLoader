@@ -7,7 +7,8 @@
       without EasyAntiCheat. Offline and private LAN play only.
    4. Creates the Mods folder.
 
- It never edits or removes EasyAntiCheat files, never moves your paks, and never touches saves. If a step fails, the steps already done are undone.
+ It never edits or removes EasyAntiCheat files and never touches saves. It does not move your paks, but the launcher, each time it starts,
+ moves every extra .pak (and its .sig) directly in Content\Paks into its own folder under Mods. If a step fails, the steps already done are undone.
  Steam's "Verify integrity of game files" restores the original Absolver.exe; run this installer again afterwards.
  A log of every step is written to install.log next to this script.
 

@@ -9,7 +9,6 @@ import getpass, os, socket, sys, zipfile
 
 def default_patterns():
     pats = {getpass.getuser(), socket.gethostname(), os.path.expanduser("~")}
-    # same again in lower case
     pats |= {p.lower() for p in list(pats)}
     return {p for p in pats if len(p) >= 4}
 

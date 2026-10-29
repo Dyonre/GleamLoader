@@ -20,6 +20,8 @@ typedef HRESULT(STDMETHODCALLTYPE *Present_t)(IDXGISwapChain *, UINT, UINT);
 typedef HRESULT(STDMETHODCALLTYPE *Resize_t)(IDXGISwapChain *, UINT, UINT, UINT, DXGI_FORMAT, UINT);
 typedef HRESULT(WINAPI *CreateDevSc_t)(IDXGIAdapter *, D3D_DRIVER_TYPE, HMODULE, UINT, const D3D_FEATURE_LEVEL *, UINT, UINT, const DXGI_SWAP_CHAIN_DESC *, IDXGISwapChain **, ID3D11Device **, D3D_FEATURE_LEVEL *, ID3D11DeviceContext **);
 
+static int xi_install(void);                                       // the game's gamepad (below)
+static volatile LONG g_xi_calls, g_xi_zeroed, g_xi_hooked;         // calls seen by the XInputGetState wrapper, calls it neutralised, 1 = installed / -1 = not possible
 static void (*g_log)(const char *fmt, ...);
 #define LOG(...) do { if (g_log) g_log(__VA_ARGS__); } while (0)
 
@@ -73,19 +75,23 @@ extern "C" int ov_unregister(int owner, void (*draw)(void *), void *user) {
 }
 extern "C" int ov_set_mode(int owner, unsigned flags) {
     if (owner < 0 || owner > 63 || !g_installed) return 1;
-    flags &= OVM_DRAW | OVM_MOUSE | OVM_KEYS | OVM_RAW;
+    flags &= OVM_DRAW | OVM_MOUSE | OVM_KEYS | OVM_RAW | OVM_BLOCK | OVM_HIDECURSOR;
+    if (flags & OVM_BLOCK) xi_install();
     EnterCriticalSection(&g_cs);
-    unsigned old = g_mode[owner]; g_mode[owner] = flags; recompute_any();
+    unsigned old = g_mode[owner], was_mouse = (unsigned)(g_any & OVM_MOUSE); g_mode[owner] = flags; recompute_any();
     if (flags != old) { InterlockedExchange(&g_rdx, 0); InterlockedExchange(&g_rdy, 0); }
+    if (was_mouse && !(g_any & OVM_MOUSE)) InterlockedExchange(&g_clear, 1);   // the mouse is no longer ImGui's: a button it still holds is let go
     LeaveCriticalSection(&g_cs);
-    if (flags != old) LOG("overlay: plugin %s mode 0x%x -> 0x%x", owner_name(owner), old, flags);
+    if (flags != old) LOG("overlay: plugin %s mode 0x%x -> 0x%x%s", owner_name(owner), old, flags, g_xi_hooked > 0 ? " (gamepad hook: calls and neutralised so far are logged below)" : "");
+    if (flags != old && g_xi_hooked > 0) LOG("overlay: XInputGetState seen %ld time(s), %ld neutralised", g_xi_calls, g_xi_zeroed);
     return 0;
 }
 extern "C" void ov_release_owner(int owner) {
     if (owner < 0 || owner > 63 || !g_installed) return;
     EnterCriticalSection(&g_cs);
-    unsigned old = g_mode[owner]; int dropped = 0;
+    unsigned old = g_mode[owner], was_mouse = (unsigned)(g_any & OVM_MOUSE); int dropped = 0;
     g_mode[owner] = 0; recompute_any();
+    if (was_mouse && !(g_any & OVM_MOUSE)) InterlockedExchange(&g_clear, 1);
     for (int i = 0; i < g_nreg; ) { if (g_reg[i].owner == owner) { memmove(g_reg + i, g_reg + i + 1, sizeof(DrawReg) * (size_t)(g_nreg - i - 1)); g_nreg--; dropped++; } else i++; }
     LeaveCriticalSection(&g_cs);
     if (old || dropped) LOG("overlay: plugin %s released (mode 0x%x, %d callback(s) removed)", owner_name(owner), old, dropped);
@@ -95,13 +101,16 @@ extern "C" int ov_raw_mouse(int *dx, int *dy) {
     *dx = (int)InterlockedExchange(&g_rdx, 0); *dy = (int)InterlockedExchange(&g_rdy, 0);
     return 0;
 }
-extern "C" void ov_info(OvInfo *o) {
+extern "C" void ov_info(int owner, OvInfo *o) {
     memset(o, 0, sizeof *o);
     LONG st = g_state; o->state = st == OV_READY ? 1 : st == OV_DEAD ? -1 : 0;
     o->context = g_ictx; o->version = IMGUI_VERSION; o->version_num = IMGUI_VERSION_NUM;
     if (g_ictx) { ImGuiMemAllocFunc a; ImGuiMemFreeFunc f; void *u; ImGui::GetAllocatorFunctions(&a, &f, &u); o->alloc = a; o->free = f; o->alloc_user = u; }
     o->width = g_cw; o->height = g_ch; o->scale = g_scale; o->device = g_dev; o->device_context = g_ctx;
     o->sizeof_io = (int)sizeof(ImGuiIO); o->sizeof_style = (int)sizeof(ImGuiStyle); o->sizeof_vert = (int)sizeof(ImDrawVert); o->sizeof_idx = (int)sizeof(ImDrawIdx); o->sizeof_wchar = (int)sizeof(ImWchar);
+    if (owner >= 0 && owner < 64 && g_installed) {
+        EnterCriticalSection(&g_cs); o->caller_mode = g_mode[owner]; for (int i = 0; i < g_nreg; i++) if (g_reg[i].owner == owner) o->caller_callbacks++; LeaveCriticalSection(&g_cs);
+    }
 }
 extern "C" void ov_set_scale(float s) { g_min_scale = s < 0.5f ? 0.5f : s > 4.f ? 4.f : s; }
 extern "C" int ov_state(void) { return (int)g_state; }
@@ -137,34 +146,98 @@ static void raw_move(LONG dx, LONG dy, LONG menu, LONG mouse_on, LONG raw_on) {
     if (mouse_on && (menu || !raw_on)) { InterlockedAdd(&g_dx, dx); InterlockedAdd(&g_dy, dy); }
 }
 static int is_fkey(UINT m, WPARAM w) { return (m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && w >= VK_F1 && w <= VK_F12; }
-static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
+// mouse button of a button message: bit 0 left, 1 right, 2 middle, 3 / 4 the X buttons; down = 1 press, 0 release, -1 not a button message
+static int mouse_button(UINT m, WPARAM w, int *down) {
+    *down = -1;
+    switch (m) {
+    case WM_LBUTTONDOWN: case WM_LBUTTONDBLCLK: *down = 1; return 1;
+    case WM_LBUTTONUP: *down = 0; return 1;
+    case WM_RBUTTONDOWN: case WM_RBUTTONDBLCLK: *down = 1; return 2;
+    case WM_RBUTTONUP: *down = 0; return 2;
+    case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK: *down = 1; return 4;
+    case WM_MBUTTONUP: *down = 0; return 4;
+    case WM_XBUTTONDOWN: case WM_XBUTTONDBLCLK: *down = 1; return GET_XBUTTON_WPARAM(w) == XBUTTON1 ? 8 : 16;
+    case WM_XBUTTONUP: *down = 0; return GET_XBUTTON_WPARAM(w) == XBUTTON1 ? 8 : 16;
+    }
+    return 0;
+}
+enum { R_PASS = 0, R_SWALLOW, R_DEFAULT };                         // what the window procedure does with a message: give it to the game, drop it, or only let the default procedure release it (WM_INPUT)
+static unsigned char g_game_btn, g_kept_btn;                       // mouse buttons whose press the game saw / whose press was kept from it (window thread only)
+// Decides for one message. feed(...) hands it to ImGui. Window thread only.
+static int route(HWND h, UINT m, WPARAM w, LPARAM l, void (*feed)(HWND, UINT, WPARAM, LPARAM)) {
     if (m == WM_KILLFOCUS || (m == WM_ACTIVATEAPP && !w) || (m == WM_ACTIVATE && LOWORD(w) == WA_INACTIVE)) {   // focus lost: nothing is swallowed until it returns, ImGui forgets held keys and buttons
         InterlockedExchange(&g_focus, 0); InterlockedExchange(&g_clear, 1); InterlockedExchange(&g_rdx, 0); InterlockedExchange(&g_rdy, 0);
     } else if (m == WM_SETFOCUS || (m == WM_ACTIVATEAPP && w) || (m == WM_ACTIVATE && LOWORD(w) != WA_INACTIVE)) InterlockedExchange(&g_focus, 1);
     if ((m == WM_KEYUP || m == WM_SYSKEYUP) && w < 256 && g_swallowed[w]) {         // the game never saw this key go down: it must not see it come up
-        g_swallowed[w] = 0;
-        if (g_imgui) { EnterCriticalSection(&g_cs); ImGui_ImplWin32_WndProcHandler(h, m, w, l); LeaveCriticalSection(&g_cs); }
-        return 0;
+        g_swallowed[w] = 0; if (feed) feed(h, m, w, l); return R_SWALLOW;
     }
+    int down, btn = mouse_button(m, w, &down);
+    if (down == 0 && (g_kept_btn & btn)) { g_kept_btn &= (unsigned char)~btn; if (feed) feed(h, m, w, l); return R_SWALLOW; }   // same for a mouse button
     LONG menu = g_vis, any = g_any;
+    LONG block = any & OVM_BLOCK;                                    // keep every key and mouse message from the game
     LONG mouse_on = menu || (any & OVM_MOUSE), keys_on = menu || (any & OVM_KEYS), raw_on = any & OVM_RAW;
-    if (g_focus && g_state == OV_READY && (mouse_on || keys_on || raw_on)) {
-        if (m == WM_INPUT && (mouse_on || raw_on)) {                 // the game reads raw mouse movement for the camera: it goes to the virtual cursor or to ov_raw_mouse instead
+    if (g_focus && g_state == OV_READY && (mouse_on || keys_on || raw_on || block)) {
+        if (m == WM_INPUT && (mouse_on || raw_on || block)) {        // the game reads raw mouse movement for the camera: it goes to the virtual cursor or to ov_raw_mouse instead
             RAWINPUT ri; UINT sz = sizeof ri;
-            if (GetRawInputData((HRAWINPUT)l, RID_INPUT, &ri, &sz, sizeof(RAWINPUTHEADER)) != (UINT)-1 && ri.header.dwType == RIM_TYPEMOUSE && !(ri.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)) {
+            if (l && GetRawInputData((HRAWINPUT)l, RID_INPUT, &ri, &sz, sizeof(RAWINPUTHEADER)) != (UINT)-1 && ri.header.dwType == RIM_TYPEMOUSE && !(ri.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE))
                 raw_move(ri.data.mouse.lLastX, ri.data.mouse.lLastY, menu, mouse_on, raw_on);
-            }
-            return DefWindowProcW(h, m, w, l);                       // swallowed (the default procedure releases the raw input buffer)
+            return R_DEFAULT;
         }
         int is_mouse = m >= WM_MOUSEFIRST && m <= WM_MOUSELAST;
-        if (mouse_on && (m == WM_MOUSEMOVE || m == WM_NCMOUSEMOVE || m == WM_MOUSELEAVE || m == WM_NCMOUSELEAVE)) return 0;   // the game pins the OS cursor; only the virtual cursor counts
+        if ((mouse_on || block) && (m == WM_MOUSEMOVE || m == WM_NCMOUSEMOVE || m == WM_MOUSELEAVE || m == WM_NCMOUSELEAVE)) return R_SWALLOW;   // the game pins the OS cursor; only the virtual cursor counts
         int is_key = m == WM_KEYDOWN || m == WM_SYSKEYDOWN || m == WM_KEYUP || m == WM_SYSKEYUP || m == WM_CHAR || m == WM_SYSCHAR;
-        if ((is_mouse && mouse_on) || (is_key && keys_on)) { EnterCriticalSection(&g_cs); ImGui_ImplWin32_WndProcHandler(h, m, w, l); LeaveCriticalSection(&g_cs); }
-        if (is_mouse && mouse_on) return 0;
+        if (((is_mouse && mouse_on) || (is_key && keys_on)) && feed) feed(h, m, w, l);
+        if (is_mouse && (mouse_on || block)) {
+            if (down == 0 && (g_game_btn & btn)) { g_game_btn &= (unsigned char)~btn; return R_PASS; }   // the game saw this press: it gets the release, so nothing stays held
+            if (down == 1) g_kept_btn |= (unsigned char)btn;
+            return R_SWALLOW;
+        }
         int key_down = m == WM_KEYDOWN || m == WM_SYSKEYDOWN || m == WM_CHAR || m == WM_SYSCHAR;
-        if (key_down && keys_on && !is_fkey(m, w) && (menu || g_want_keys)) { if ((m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && w < 256) g_swallowed[w] = 1; return 0; }   // the F keys keep working; a swallowed press takes its release with it
+        if (key_down && !is_fkey(m, w) && ((keys_on && (menu || g_want_keys)) || block)) { if ((m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && w < 256) g_swallowed[w] = 1; return R_SWALLOW; }   // the F keys keep working; a swallowed press takes its release with it
     }
+    if (down == 1) g_game_btn |= (unsigned char)btn; else if (down == 0) g_game_btn &= (unsigned char)~btn;
+    return R_PASS;
+}
+static void feed_imgui(HWND h, UINT m, WPARAM w, LPARAM l) { if (!g_imgui) return; EnterCriticalSection(&g_cs); ImGui_ImplWin32_WndProcHandler(h, m, w, l); LeaveCriticalSection(&g_cs); }
+static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    int r = route(h, m, w, l, feed_imgui);
+    if (r == R_SWALLOW) return 0;
+    if (r == R_DEFAULT) return DefWindowProcW(h, m, w, l);           // the default procedure releases the raw input buffer
     return CallWindowProcW(g_oldproc, h, m, w, l);
+}
+
+/* ---------- the game's gamepad: while a plugin has OVM_BLOCK the game's XInputGetState reports a neutral pad ---------- */
+typedef DWORD(WINAPI *XInputGetState_t)(DWORD, void *);
+static XInputGetState_t g_xi_orig;
+static void xi_neutral(void *state) { memset((char *)state + sizeof(DWORD), 0, 12); }   // XINPUT_STATE: the packet number stays, buttons, triggers and thumbs (12 bytes) go to zero
+static DWORD WINAPI xi_get_state(DWORD user, void *state) {
+    DWORD rc = g_xi_orig ? g_xi_orig(user, state) : ERROR_DEVICE_NOT_CONNECTED;
+    InterlockedIncrement(&g_xi_calls);
+    if (rc == ERROR_SUCCESS && state && (g_any & OVM_BLOCK) && g_focus) { xi_neutral(state); InterlockedIncrement(&g_xi_zeroed); }
+    return rc;
+}
+// The game imports XInputGetState by ordinal (xinput1_3 ordinal 2): replace its slot in the executable's import address table. Once; 1 = in place.
+static int xi_install(void) {
+    if (g_xi_hooked) return g_xi_hooked > 0;
+    g_xi_hooked = -1;
+    BYTE *base = (BYTE *)GetModuleHandleW(NULL); if (!base) return 0;
+    IMAGE_DOS_HEADER *dos = (IMAGE_DOS_HEADER *)base; IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + dos->e_lfanew);
+    IMAGE_DATA_DIRECTORY dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT]; if (!dd.VirtualAddress) return 0;
+    for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(base + dd.VirtualAddress); d->Name; d++) {
+        if (_strnicmp((const char *)(base + d->Name), "xinput", 6) != 0) continue;
+        ULONGLONG *thunk = (ULONGLONG *)(base + (d->OriginalFirstThunk ? d->OriginalFirstThunk : d->FirstThunk)); void **iat = (void **)(base + d->FirstThunk);
+        for (int i = 0; thunk[i]; i++) {
+            int is_get_state = 0;
+            if (thunk[i] & IMAGE_ORDINAL_FLAG64) is_get_state = (thunk[i] & 0xFFFF) == 2;
+            else is_get_state = strcmp((const char *)((IMAGE_IMPORT_BY_NAME *)(base + thunk[i]))->Name, "XInputGetState") == 0;
+            if (!is_get_state) continue;
+            DWORD old; if (!VirtualProtect(&iat[i], sizeof(void *), PAGE_READWRITE, &old)) return 0;
+            g_xi_orig = (XInputGetState_t)iat[i]; iat[i] = (void *)xi_get_state; VirtualProtect(&iat[i], sizeof(void *), old, &old);
+            g_xi_hooked = 1; LOG("overlay: the game's XInputGetState is routed through the overlay (import slot %p)", (void *)&iat[i]); return 1;
+        }
+    }
+    LOG("overlay: no XInputGetState import found - ABS_OV_BLOCK_GAME cannot neutralise the gamepad");
+    return 0;
 }
 
 /* ---------- drawing ---------- */
@@ -279,7 +352,7 @@ static void call_draw(const DrawReg &r) {
 }
 static void draw_ui(int w, int h) {
     const OvSnap &s = g_cur;
-    ImGuiIO &io = ImGui::GetIO(); io.MouseDrawCursor = g_vis || (g_any & OVM_MOUSE); g_cw = w; g_ch = h;
+    ImGuiIO &io = ImGui::GetIO(); io.MouseDrawCursor = g_vis || ((g_any & OVM_MOUSE) && !(g_any & OVM_HIDECURSOR)); g_cw = w; g_ch = h;
     if (s.kind != OV_NONE) {                                         // the loader's own windows first, balanced by construction
         bool open = true;
         float ww = s.kind == OV_MODS ? 860.f * g_scale : 560.f * g_scale, wh = s.kind == OV_MODS ? 620.f * g_scale : 470.f * g_scale;

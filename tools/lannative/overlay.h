@@ -50,13 +50,14 @@ typedef struct OvCmd { int cmd, index; } OvCmd;
 
 // Plugin side (AbsApi overlay_*). owner = the plugin's index (0..63). Draw callbacks run on the render thread inside a frame, between NewFrame and Render, after the
 // loader's own windows. Modes are per owner and combined: frames run while any owner has a mode set (or a loader menu is open).
-enum { OVM_DRAW = 1, OVM_MOUSE = 2, OVM_KEYS = 4, OVM_RAW = 8 };       // same values as ABS_OV_DRAW / _MOUSE / _KEYS / _RAWMOUSE
+enum { OVM_DRAW = 1, OVM_MOUSE = 2, OVM_KEYS = 4, OVM_RAW = 8, OVM_BLOCK = 16, OVM_HIDECURSOR = 32 };   // same values as ABS_OV_DRAW / _MOUSE / _KEYS / _RAWMOUSE / _BLOCK_GAME / _HIDECURSOR
 typedef struct OvInfo {
     int state;                                                           // 0 starting, 1 ready, -1 dead
     void *context; const char *version; int version_num;
     void *(*alloc)(size_t, void *); void (*free)(void *, void *); void *alloc_user;
     int width, height; float scale; void *device, *device_context;
     int sizeof_io, sizeof_style, sizeof_vert, sizeof_idx, sizeof_wchar;  // layout of the loader's ImGui build
+    unsigned caller_mode; int caller_callbacks;                          // the asking plugin's current mode flags and registered callbacks
 } OvInfo;
 
 void ov_set_guard(int (*alive)(int owner), void (*fault)(int owner, unsigned long code), const char *(*name)(int owner));
@@ -65,7 +66,7 @@ int  ov_unregister(int owner, void (*draw)(void *user), void *user);   // 0 = re
 int  ov_set_mode(int owner, unsigned flags);                            // 0 = ok, 1 = bad owner / overlay not installed
 int  ov_raw_mouse(int *dx, int *dy);                                    // returns and clears the raw movement collected while a mode has OVM_RAW; 0 = ok, 1 = not installed
 void ov_release_owner(int owner);                                       // drops the owner's modes and callbacks (3 faults, unload, owner no longer alive)
-void ov_info(OvInfo *out);                                              // any thread: a snapshot; the context pointer is only to be bound inside a draw callback
+void ov_info(int owner, OvInfo *out);                                              // any thread: a snapshot; the context pointer is only to be bound inside a draw callback
 void ov_set_log(void (*fn)(const char *fmt, ...));                      // log sink (the loader's logf_)
 void ov_set_scale(float min_scale);                                     // lower bound of the UI scale (1 = 1080p size)
 int  ov_request(void);                                                  // installs the hooks once (game thread, first menu open); returns ov_state()

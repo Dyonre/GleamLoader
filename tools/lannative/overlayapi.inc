@@ -15,9 +15,10 @@ static int ovapi_up(int p, const char *what) {                                  
 static int api_p_overlay_info(const AbsApi *self, AbsOverlayInfo *out) {
     if (plug_of(self) < 0 || !out || out->size < offsetof(AbsOverlayInfo, width) + sizeof(int)) return 1;
     if (ov_state() == OV_OFF) return 1;
-    OvInfo in; ov_info(&in);
+    OvInfo in; ov_info(plug_of(self), &in);
     AbsOverlayInfo o; memset(&o, 0, sizeof o); o.state = in.state; o.imgui_context = in.context; o.imgui_version = in.version; o.imgui_version_num = in.version_num;
     o.imgui_alloc = in.alloc; o.imgui_free = in.free; o.imgui_alloc_user = in.alloc_user; o.width = in.width; o.height = in.height; o.ui_scale = in.scale; o.d3d_device = in.device; o.d3d_context = in.device_context;
+    o.caller_mode = in.caller_mode; o.caller_callbacks = in.caller_callbacks;
     o.sizeof_imgui_io = in.sizeof_io; o.sizeof_imgui_style = in.sizeof_style; o.sizeof_imgui_drawvert = in.sizeof_vert; o.sizeof_imgui_drawidx = in.sizeof_idx; o.sizeof_imgui_wchar = in.sizeof_wchar;
     uint32_t cap = out->size < sizeof o ? out->size : (uint32_t)sizeof o; memcpy(out, &o, cap); out->size = cap;
     return in.state < 0 ? 2 : in.state == 0 ? 1 : 0;

@@ -344,13 +344,19 @@ typedef struct AbsHitPre {
     float knockback_scale;     /* x the knockback distance (hit and guard) */
 } AbsHitPre;
 
-/* overlay_set_mode flags (v2.21). Gamepad input is never taken: ImGui does not read or navigate with it and it keeps driving the game. */
+/* overlay_set_mode flags (v2.21). ImGui never reads or navigates with the gamepad; only ABS_OV_BLOCK_GAME changes what the game sees from it. */
 enum {
     ABS_OV_DRAW     = 1,       /* your callbacks run; no input is taken (HUDs, viewport overlays that do their own picking) */
     ABS_OV_MOUSE    = 2,       /* mouse to ImGui and kept from the game; a virtual cursor is drawn (the game pins the OS cursor) */
     ABS_OV_KEYS     = 4,       /* keys and characters to ImGui; kept from the game only while ImGui wants them (io.WantCaptureKeyboard / WantTextInput). F1-F12 always reach the game, and so does a key release whose press the game saw; a press kept from the game takes its release with it */
-    ABS_OV_RAWMOUSE = 8        /* raw mouse movement goes to overlay_raw_mouse instead of the game and the virtual cursor (fly cameras, drag gizmos) */
+    ABS_OV_RAWMOUSE = 8,       /* raw mouse movement goes to overlay_raw_mouse instead of the game and the virtual cursor (fly cameras, drag gizmos) */
+    ABS_OV_BLOCK_GAME = 16,    /* while any plugin has it: the game gets no keyboard or mouse input and a neutral gamepad (see below). Does not give ImGui any input by itself */
+    ABS_OV_HIDECURSOR = 32     /* the virtual cursor is not drawn while any plugin has it (a loader menu that is open still shows it) */
 };
+/* ABS_OV_BLOCK_GAME, exactly: kept from the game are all key presses and characters (except F1-F12), all mouse buttons, wheel and movement messages, and raw mouse movement;
+ * the game's XInputGetState returns the state with buttons, triggers and sticks at zero (the packet number and the return code are unchanged). Still reaching the game: F1-F12,
+ * the release of any key or mouse button whose press the game saw (nothing stays held), window, focus and size messages, and everything the game reads outside the window procedure and
+ * XInputGetState (GetAsyncKeyState polling, rumble output). Nothing is blocked while the game window is not the foreground window. ImGui never reads the gamepad. */
 /* overlay_info (v2.21): the loader's Dear ImGui context. At the top of every draw callback check the layout and bind your own copy of ImGui:
  *   if (i.imgui_version_num != IMGUI_VERSION_NUM || i.sizeof_imgui_io != sizeof(ImGuiIO) || i.sizeof_imgui_style != sizeof(ImGuiStyle) || i.sizeof_imgui_drawvert != sizeof(ImDrawVert) ||
  *       i.sizeof_imgui_drawidx != sizeof(ImDrawIdx) || i.sizeof_imgui_wchar != sizeof(ImWchar)) return;      // different build: draw nothing
@@ -370,6 +376,8 @@ typedef struct AbsOverlayInfo {
     void *d3d_device;          /* ID3D11Device * (NULL until the first frame) */
     void *d3d_context;         /* ID3D11DeviceContext * (the immediate context) */
     int sizeof_imgui_io, sizeof_imgui_style, sizeof_imgui_drawvert, sizeof_imgui_drawidx, sizeof_imgui_wchar;   /* layout of the loader's ImGui build */
+    unsigned caller_mode;      /* the calling plugin's current ABS_OV_* flags: 0 once the loader released them (3 faults, unload) */
+    int caller_callbacks;      /* the calling plugin's registered draw callbacks (0 after a release) */
 } AbsOverlayInfo;
 
 /* on_defense (v2.20). type: */

@@ -97,7 +97,10 @@ int main(int argc, char **argv) {
     // pass 1 (records) and pass 2 (expand + edits), exactly like modglue.inc
     static RecCtx rc; static RowOps ops; static ObjOps objs; static JDoc docs[MODS_MAX]; int have[MODS_MAX] = {0}; const char *posname[MODS_MAX];
     for (int k = 0; k < res.norder; k++) {
-        int m = res.order[k]; posname[k] = list.mods[m].name; snprintf(pat, sizeof pat, "%s\\%s\\rows.json", argv[1], list.mods[m].name); char *t = slurp(pat); if (!t) continue;
+        int m = res.order[k]; posname[k] = list.mods[m].name; snprintf(pat, sizeof pat, "%s\\%s\\rows.json", argv[1], list.mods[m].name); char *t = slurp(pat);
+        if (!t) { snprintf(pat, sizeof pat, "%s\\%s\\rows.json", argv[1], list.mods[m].name); WIN32_FILE_ATTRIBUTE_DATA fa;
+            if (GetFileAttributesExA(pat, GetFileExInfoStandard, &fa) && (fa.nFileSizeHigh || fa.nFileSizeLow > (8u << 20))) { printf("[ERROR] %s/rows.json is larger than 8 MB and was not read\n", list.mods[m].name); problems++; }
+            continue; }
         if (jdoc_parse(&docs[k], t) != 0) { printf("[ERROR] %s/rows.json: %s\n", list.mods[m].name, docs[k].err); problems++; free(t); continue; }
         free(t); have[k] = 1; RowsWarn w; memset(&w, 0, sizeof w); rec_collect(&rc, &docs[k], list.mods[m].name, &w);
         for (int i = 0; i < w.n && i < 8; i++) printf("[WARN] %s/rows.json: %s\n", list.mods[m].name, w.line[i]); problems += w.n;

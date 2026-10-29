@@ -206,12 +206,16 @@ static void mods_mount_all(void *self) {
             }
         }
         qsort(paks, np, sizeof *paks, cmp_cstr);
-        char *rows_text = NULL; { wchar_t rj[MAX_PATH]; swprintf(rj, MAX_PATH, L"%ls\\rows.json", dir); rows_text = mods_read_text(rj, 8u << 20); }
+        char *rows_text = NULL; int rows_big = 0; { wchar_t rj[MAX_PATH]; swprintf(rj, MAX_PATH, L"%ls\\rows.json", dir); rows_text = mods_read_text(rj, 8u << 20);
+          WIN32_FILE_ATTRIBUTE_DATA fa; if (!rows_text && GetFileAttributesExW(rj, GetFileExInfoStandard, &fa)) rows_big = fa.nFileSizeHigh || fa.nFileSizeLow > (8u << 20); }
+        if (rows_big) { mods_warn("%s/rows.json is larger than 8 MB and was not read", me->name); RPT("[FAILED]  %s/rows.json  larger than 8 MB, not read\r\n", me->name); }
         wchar_t plug_dll[MAX_PATH]; swprintf(plug_dll, MAX_PATH, L"%ls\\plugin.dll", dir); int has_plugin = GetFileAttributesW(plug_dll) != INVALID_FILE_ATTRIBUTES;
         uint64_t chash = 0; int ncf = content_scan_mod(position, me->name, mfs[m].id, dir, &chash);
         if (m < g_mi_n) { g_mi[m].paks_total = np; g_mi[m].content_files = ncf; wcsncpy(g_mi_dir[m], dir, MAX_PATH - 1); g_mi_dir[m][MAX_PATH - 1] = 0; }
         if (!np && !rows_text && !has_plugin && !ncf) {
-            if (m < g_mi_n) g_mi[m].status = MI_EMPTY; logf_("mods: %s has no .pak files, no rows.json, no content\\ files and no plugin.dll (skipped)", me->name); RPT("[empty] %s\r\n", me->name); continue; }
+            if (m < g_mi_n) g_mi[m].status = MI_EMPTY;
+            if (rows_big) logf_("mods: %s has nothing else to load (skipped)", me->name);
+            else logf_("mods: %s has no .pak files, no rows.json, no content\\ files and no plugin.dll (skipped)", me->name); RPT("[empty] %s\r\n", me->name); continue; }
         int cosmetic = 0;
         cosmetic = !mfs[m].affects_gameplay;
         int ok_paks = 0;

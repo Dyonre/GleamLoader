@@ -76,6 +76,31 @@ static void modsui_action(int index) {
         g_mui_at = 0;
     }
 }
+#ifdef LN_OVERLAY
+// the same data the text page is built from, copied for the overlay's render thread (overlay.h OvSnap)
+static void modsui_snapshot(OvSnap *o) {
+    modsui_count();                                                               // refreshes g_mui when it is older than 500 ms
+    const ModsUiIn *in = &g_mui;
+    o->kind = OV_MODS; snprintf(o->title, OV_LINE, "Mods");
+    o->safe_mode = in->safe_mode; snprintf(o->safe_why, sizeof o->safe_why, "%s", in->safe_why ? in->safe_why : "");
+    snprintf(o->order, sizeof o->order, "%s", in->order ? in->order : "");
+    o->nmods = in->nmods < OV_MODS_MAX ? in->nmods : OV_MODS_MAX;
+    for (int i = 0; i < o->nmods; i++) {
+        const ModInfo *m = &in->mods[i]; OvMod *d = &o->mods[i];
+        snprintf(d->name, sizeof d->name, "%s", m->name); snprintf(d->id, sizeof d->id, "%s", m->id); snprintf(d->version, sizeof d->version, "%s", m->version); snprintf(d->reason, sizeof d->reason, "%s", m->reason);
+        d->status = m->status; d->paks_ok = m->paks_ok; d->paks_total = m->paks_total; d->rows_ops = m->rows_ops; d->content_files = m->content_files; d->plugin = m->plugin; d->affects_gameplay = m->affects_gameplay;
+    }
+    o->pak_conflicts = in->pak_conflicts; o->pak_conflicts_real = in->pak_conflicts_real; o->row_conflicts = in->row_conflicts; o->obj_conflicts = in->obj_conflicts; o->split_assets = in->split_assets;
+    o->nwarn = in->nwarn < OV_WARN ? in->nwarn : OV_WARN; for (int i = 0; i < o->nwarn; i++) snprintf(o->warn[i], sizeof o->warn[i], "%s", in->warn[i]);
+    o->c_files = in->c_files; o->c_entries = in->c_entries; o->c_invalid = in->c_invalid;
+    o->ncconf = in->ncconf < OV_CCONF ? in->ncconf : OV_CCONF; for (int i = 0; i < o->ncconf; i++) snprintf(o->cconf[i], sizeof o->cconf[i], "%s", in->cconf[i]);
+    o->nplug = in->nplug < OV_PLUG ? in->nplug : OV_PLUG;
+    for (int i = 0; i < o->nplug; i++) { snprintf(o->plug_name[i], sizeof o->plug_name[i], "%s", in->plug_name[i]); o->plug_faults[i] = in->plug_faults[i]; o->plug_loaded[i] = in->plug_loaded[i]; }
+    snprintf(o->reload_status, sizeof o->reload_status, "%s", in->reload_status ? in->reload_status : "");
+    o->nactions = in->nactions < OV_ACTIONS ? in->nactions : OV_ACTIONS;
+    for (int i = 0; i < o->nactions; i++) { snprintf(o->action[i], OV_LINE, "%s", in->action[i]); o->action_kind[i] = i < g_mui_nref ? g_mui_ref[i].kind : 0; }
+}
+#endif
 // Left on the Mods page while a section is open: close it; returns the line to select (the section's header)
 static int modsui_back(int sel) {
     int k = g_mui_open; if (k < 0) return sel;

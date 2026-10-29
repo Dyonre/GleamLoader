@@ -353,6 +353,8 @@ Common messages and what to do:
 
 **F2** opens the F1 menu straight on the **Mods** page (F2 again or F1 closes it, Left goes back to the main menu). It shows, live:
 
+The menus are drawn with Dear ImGui by default: a dark, translucent window with the same pages and key bindings (F1, F2, Up / Down, Enter, Left), and mouse clicks work too. While a menu is open it takes the mouse and the keyboard (F1 - F12 still reach the game, the gamepad is never taken). The table below lists the lines of the text form; the ImGui page shows the same data as sections (Mods table, Conflicts, Content registry, Plugins). Set `menu_style = text` in `LanNative\config.txt` for the plain text menu. When the overlay cannot start, the text menu is used and `LanNative\lannative.log` says why (`overlay: ...`).
+
 | Line | Meaning |
 |---|---|
 | `Safe mode` | off, or ON with the reason (Shift held, `-SESafe`, `safe.txt`, crash-loop guard) |

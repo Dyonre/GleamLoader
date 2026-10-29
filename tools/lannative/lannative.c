@@ -34,6 +34,9 @@
 #include "textinput.h"
 #include "hostip.h"
 #include "config.h"
+#ifdef LN_OVERLAY
+#include "overlay.h"
+#endif
 #include "matchredir.h"
 #include "modconf.h"
 #include "lanmods.h"
@@ -1691,9 +1694,50 @@ static void paks_watch(uint64_t now) {
     sig = n;
 }
 
+#ifdef LN_OVERLAY
+// ---- Dear ImGui rendering of the menus (overlay.cpp). The state machine above stays the single source of truth: the overlay shows a snapshot of it and
+// hands back clicks, which are executed as the same keys. The text menu is drawn whenever the overlay is not usable (menu_style = text, start failure, faults).
+static int g_ov_on, g_ov_dead_logged; static OvSnap g_ov_snap;
+static void modsui_snapshot(OvSnap *o);                                                  // modsui.inc
+static int read_menu_style(void) {
+    wchar_t path[MAX_PATH]; char value[32] = "";
+    if (!setting_get("menu_style", L"menu_style.txt", 0, value, sizeof value, path)) { logf_("menu: style imgui (default; 'menu_style = text' in %ls selects the plain text menu)", path); return 1; }
+    int on = _strnicmp(value, "text", 4) != 0;
+    logf_("menu: style %s (%ls)", on ? "imgui" : "text", path);
+    return on;
+}
+static int ov_text_hidden(void) { return g_ov_on && ov_shows_menu(); }
+static void ov_publish_menu(void) {
+    if (!g_ov_on) return;
+    if (!g_menu.open || !g_menu_nlines) { ov_publish(NULL); return; }
+    if (ov_state() == OV_OFF) { ov_set_log(logf_); ov_request(); }
+    if (ov_state() == OV_DEAD) { if (!g_ov_dead_logged) { g_ov_dead_logged = 1; logf_("menu: the overlay is not available - the text menu is used"); } ov_publish(NULL); return; }
+    OvSnap *o = &g_ov_snap; memset(o, 0, sizeof *o);
+    if (g_ti_active) {
+        o->kind = OV_LINES; o->count = g_menu_nlines < OV_ROWS ? g_menu_nlines : OV_ROWS;
+        for (int i = 0; i < o->count; i++) snprintf(o->label[i], OV_LINE, "%s", g_menu_lines[i]);
+    } else if (g_menu.page == MP_MODS) {
+        modsui_snapshot(o); o->sel = g_menu.sel < o->nactions ? g_menu.sel : -1;
+    } else {
+        o->kind = OV_MENU; o->sel = g_menu.sel; o->has_back = g_menu.page != MP_MAIN;
+        snprintf(o->title, OV_LINE, "%s", g_menu_lines[0]);
+        if (g_menu.page == MP_MAIN) { o->count = g_menu_nlines - 1 < OV_ROWS ? g_menu_nlines - 1 : OV_ROWS; for (int i = 0; i < o->count; i++) snprintf(o->label[i], OV_LINE, "%s", g_menu_lines[i + 1]); }
+        else { o->count = g_menu.count[g_menu.page] < OV_ROWS ? g_menu.count[g_menu.page] : OV_ROWS; for (int i = 0; i < o->count; i++) snprintf(o->label[i], OV_LINE, "%s", menu_list_text(g_menu.page, i)); }
+    }
+    ov_publish(o);
+}
+#else
+#define ov_text_hidden() 0
+#endif
+
+
 static void menu_tick(int focus, uint64_t now) {
     static int kf1, kf2, kup, kdn, ken, krt, klf, kbs, loaded;
-    if (!g_menu_on || g_menu_faults >= 2) { g_menu.open = 0; g_menu_nlines = 0; return; }
+    if (!g_menu_on || g_menu_faults >= 2) { g_menu.open = 0; g_menu_nlines = 0;
+#ifdef LN_OVERLAY
+        if (g_ov_on) ov_publish(NULL);
+#endif
+        return; }
     if (!loaded) {
         loaded = 1;
         request_map_discovery();
@@ -1721,6 +1765,16 @@ static void menu_tick(int focus, uint64_t now) {
     if (g_menu.open && !g_ti_active) paks_watch(now);
     int in_box = ti_step(en, bs, f1);
     int key = in_box ? 0 : f1 ? MK_TOGGLE : f2 ? MK_MODS : !g_menu.open ? 0 : up ? MK_UP : dn ? MK_DOWN : (en || rt) ? MK_SELECT : (lf || bs) ? MK_BACK : 0;
+#ifdef LN_OVERLAY
+    { OvCmd oc;                                                                   // a click in the overlay runs as the key that does the same
+        if (g_ov_on && ov_poll(&oc) && g_menu.open && !g_ti_active) {
+            if (oc.cmd == OVC_TOGGLE) key = MK_TOGGLE;
+            else if (oc.cmd == OVC_MENU_BACK) key = MK_BACK;
+            else if ((oc.cmd == OVC_MENU_SELECT || oc.cmd == OVC_MODS_ACT) && oc.index >= 0 && oc.index < g_menu.count[g_menu.page]) { g_menu.sel = oc.index; key = MK_SELECT; }
+            if (key) logf_("menu: overlay command %d (row %d)", oc.cmd, oc.index);
+        }
+    }
+#endif
     __try {
         if (key) {
             int was = g_menu.open;
@@ -1735,6 +1789,9 @@ static void menu_tick(int focus, uint64_t now) {
             MenuStatus st = { g_autoleave_on, g_perteam_cfg, !L_is_joiner(), g_maps_n, g_altars_n, g_hostips[g_hostip_sel], g_npc_on ? g_npcs_n : 0, L_npc_live(), g_solo_cfg, g_joinaddr_text };
             g_menu_nlines = g_ti_active ? ti_layout(g_menu_lines, &g_menu_sel) : menu_layout(&g_menu, &st, menu_list_text, g_menu_lines, &g_menu_sel);
         } else g_menu_nlines = 0;
+#ifdef LN_OVERLAY
+        ov_publish_menu();
+#endif
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         g_menu_faults++; g_menu.open = 0; g_menu_nlines = 0;
         logf_("menu: EXCEPTION 0x%08lX (fault %d of 2)%s", GetExceptionCode(), g_menu_faults, g_menu_faults >= 2 ? " - the menu is off for this run; everything else keeps working" : "");
@@ -1781,7 +1838,7 @@ static void hk_postrender(void *viewport, void *canvas) {
     if (g_disabled || !canvas || g_draw_faults >= 2) return;
     int menu_visible = g_menu.open && g_menu_nlines;
     if (!menu_visible && !toast_active() && !md_draw_active()) return;
-    __try { if (menu_visible) draw_menu(canvas); toast_draw(canvas); md_draw(canvas); }
+    __try { if (menu_visible && !ov_text_hidden()) draw_menu(canvas); toast_draw(canvas); md_draw(canvas); }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         g_draw_faults++;
         logf_("menu: EXCEPTION 0x%08lX while drawing (fault %d of 2)%s", GetExceptionCode(), g_draw_faults, g_draw_faults >= 2 ? " - the menu text is off for this run" : "");
@@ -2147,6 +2204,9 @@ static void init(HMODULE self) {
     hostip_load();
     read_npc_cfg();
     g_menu_on = read_menu_cfg();
+#ifdef LN_OVERLAY
+    if (g_menu_on) g_ov_on = read_menu_style();
+#endif
     if (g_menu_on || g_lm_mode) {
         g_orig_postrender = (PostRender_t)hook(IDX_POSTRENDER, (void *)hk_postrender);
         if (!g_orig_postrender) { g_menu_on = 0; logf_("menu: PostRender hook NOT installed - the menu is off"); }

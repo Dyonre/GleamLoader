@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // texture.inc - runtime textures for the script extender (API 2.5, included by secore.inc). Lets a mod use a PNG next to its mod.json as an item icon without cooking.
 //   create_texture(bgra, w, h, path): UTexture2D::CreateTransient(w, h, PF_B8G8R8A8) -> copy the pixels into mip 0 -> UpdateResource -> moved into /Game/Mods/<Mod>/<Name> and rooted,
 //   so a soft path ("m_InventoryIcon") resolves to it like a cooked asset. texture_from_file(file, path): decodes PNG / JPEG / BMP / GIF / TIFF with Windows Imaging Component (part of

@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // Plugin API v2 (included by lannative.c after rowedit.inc; its entry points are forward-declared at the top of lannative.c).
 // A mod folder with plugin.dll is loaded when its name is listed in Mods\plugins.txt (the loader appends "#Name" for new ones) and the mod is enabled in loadorder.txt.
 // The plugin gets one AbsApi (AbsolverSE.h) with logging, events, stackable hooks with byte checks, and reflection (objects, properties, functions).
@@ -21,7 +20,7 @@ static PlugJob g_pjobs[128]; static int g_pjobs_n;
 static int g_plug_ready_fired;
 static void se_fill_api(AbsApi *a);            // secore.inc: the v2.1 additions
 static void se_tick(float dt);               // secore.inc: timers, world events
-static void content_init(const AbsApi *a);   // content.inc: the loader's own "Content" plugin (items / styles handlers, content scan at engine ready)
+static void content_init(const AbsApi *a);   // content.inc: the loader's own "Content" plugin (built-in kind handlers, content scan at engine ready)
 static int content_file_count(void);
 static int api_p_register_content_kind(const AbsApi *self, const char *kind, int (*validate)(const char *, char *, int, void *), int (*apply)(const char *, const char *, const char *, void *), void *user);
 
@@ -34,7 +33,7 @@ static void plug_fault(int p, const char *what, unsigned long code) {
     if (g_plugins[p].faults >= 3) ov_release_owner(p);                       // no overlay input or callbacks for a switched-off plugin
 #endif
 }
-// which plugin does this AbsApi belong to? (-1 = not one of ours)
+// -1 = not one of ours
 static int plug_of(const AbsApi *self) {
     for (int i = 0; i < g_plugins_n; i++) if (self == &g_plugins[i].api) return i;
     return -1;
@@ -233,7 +232,7 @@ static int plugin_register(const wchar_t *mods_dir, const char *name, const wcha
     Plugin *pl = &g_plugins[g_plugins_n]; memset(pl, 0, sizeof *pl); snprintf(pl->name, sizeof pl->name, "%s", name); wcscpy(pl->dll, dll); w_to_u8(dirw, pl->dir, sizeof pl->dir);
     g_plugins_n++; return 1;
 }
-// The loader's own plugin: carries the content registry (built-in kinds items + styles) when at least one mod ships content\<kind>\*.json. Registered last, started with the others.
+// The loader's own plugin: carries the content registry (built-in kinds: content.inc) when at least one mod ships content\<kind>\*.json. Registered last, started with the others.
 static void plugin_register_builtin(void) {
     if (!content_file_count() || g_plugins_n >= PLUG_MAX) return;
     Plugin *pl = &g_plugins[g_plugins_n]; memset(pl, 0, sizeof *pl); strcpy(pl->name, "Content"); pl->builtin = 1; g_plugins_n++;

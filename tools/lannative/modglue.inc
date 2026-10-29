@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // mod loader (included by lannative.c): mounts <game folder>\Mods\<ModName>\*.pak after the engine has mounted its own paks
 // (hook on FPakPlatformFile::Initialize). Load order = Mods\loadorder.txt (last line wins). Each mod pak gets its own read order
 // (modconf.h); a missing .sig is created next to the pak (copy of the game's own), so mod makers ship just the .pak. Never touches stock paks, never writes outside Mods\ and LanNative\.

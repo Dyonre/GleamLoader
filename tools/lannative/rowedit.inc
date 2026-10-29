@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // Row edits (included by lannative.c after lanmods.inc). Mods ship rows.json (format and parser: rowsjson.h); the mod loader turns every enabled mod's file into RowOps in
 // load order (g_rowops). This file applies them: a hook on UDataTable::Serialize re-applies the ops of a table right after it (re)loads. Engine facts:
-//
 //   edit a field : UProperty::ImportText(prop, text, row + Offset_Internal, 0, NULL, GWarn) in place; soft object paths are written directly (ImportText clears unloaded assets)
 //   add a row    : Malloc(aligned struct size), InitializeStruct, CopyScriptStruct from the source row, RowMap.Emplace(this, &id, &{&name,&ptr}, &already)
 //   values are validated first (rowval_check): ImportText turns garbage numbers into 0 and still says "ok"

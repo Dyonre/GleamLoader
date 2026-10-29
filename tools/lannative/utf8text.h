@@ -1,6 +1,4 @@
 // utf8text.h - UTF-8 <-> UTF-16 for the text that crosses the loader's boundary (rows.json values, property text dumps, FText). Pure C, tested offline (test/utf8text_test.c).
-// Before (review A3.1) every byte of a UTF-8 value became one wide character, so "Coup d'\xC3\xA9p\xC3\xA9e" arrived as mojibake in INVTEXT(...), exports turned every non-ASCII character
-// into '?', and values over 399 characters were cut without a message.
 #ifndef LANNATIVE_UTF8TEXT_H
 #define LANNATIVE_UTF8TEXT_H
 #include <stddef.h>

@@ -34,8 +34,8 @@ static volatile LONG g_rdx, g_rdy;                                 // raw mouse 
 static volatile LONG g_any;                                        // OR of every owner's mode flags
 static volatile LONG g_want_keys;                                  // ImGui wants the keyboard this frame (io.WantCaptureKeyboard / WantTextInput)
 static volatile LONG g_focus = 1, g_clear;                         // the game window has the focus; a focus loss asks the next frame to clear ImGui's input
-static unsigned g_mode[64];
-static unsigned char g_swallowed[256];                            // keys whose press was kept from the game: their release is kept too (window thread only)                                        // per owner (plugin index)
+static unsigned g_mode[64];                                       // per owner (plugin index)
+static unsigned char g_swallowed[256];                            // keys whose press was kept from the game: their release is kept too (window thread only)
 typedef struct { int owner; void (*draw)(void *); void *user; } DrawReg;
 #define DRAWMAX 16
 static DrawReg g_reg[DRAWMAX]; static int g_nreg;

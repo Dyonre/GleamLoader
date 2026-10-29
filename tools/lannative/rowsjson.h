@@ -18,7 +18,7 @@
 #include <stdarg.h>
 #include "uetext.h"
 
-// ---------------------------------------------------------------------------------------------------------------------------------- JSON
+// ----- JSON
 typedef enum { J_NULL, J_BOOL, J_NUM, J_STR, J_ARR, J_OBJ } JType;
 typedef struct { JType t; int first, next; char *key, *str; } JNode;           // children and siblings are indices into JDoc.n (-1 = none)
 typedef struct { JNode *n; int count, cap; const char *p, *begin; char err[160]; } JDoc;
@@ -113,7 +113,7 @@ static int jdoc_parse(JDoc *d, const char *text) {                 // root = nod
 static void jdoc_free(JDoc *d) { for (int i = 0; i < d->count; i++) { free(d->n[i].key); free(d->n[i].str); } free(d->n); memset(d, 0, sizeof *d); }
 static int jfind(const JDoc *d, int obj, const char *key) { for (int c = d->n[obj].first; c >= 0; c = d->n[c].next) if (d->n[c].key && !strcmp(d->n[c].key, key)) return c; return -1; }
 
-// ---------------------------------------------------------------------------------------------------------------------------------- ops
+// ----- ops
 // Name limits: Blueprint-struct property names carry a GUID suffix (DT_LightSettings: HeightFogSunInscatteringColor_45_<32 hex> = 65 characters), so names may be long.
 #define ROWS_NAME_MAX 192             // row / property / copy_of names: at most ROWS_NAME_MAX - 1 characters
 #define ROWS_TABLE_MAX 96             // table names
@@ -206,7 +206,7 @@ static int rows_from_json_w(const JDoc *d, int mod, RowOps *out, ObjOps *objs, c
         if (ja >= 0) {
             if (jc < 0 || (d->n[jc].t != J_STR && d->n[jc].t != J_NUM) || !rows_row_ok(d->n[jc].str, ROWS_NAME_MAX)) { snprintf(err, errcap, "edit %d: \"add\" needs \"copy_of\" (an existing row to clone)", idx); goto fail; }
             op.is_add = 1; strcpy(op.row, target); strcpy(op.src, d->n[jc].str);
-            int jl = jfind(d, e, "learn");                                              // "learn": "always" = the new row counts as learned for every character (learn.inc)
+            int jl = jfind(d, e, "learn");
             if (jl >= 0) { if (d->n[jl].t != J_STR || strcmp(d->n[jl].str, "always")) { snprintf(err, errcap, "edit %d: \"learn\" must be \"always\" (or left out)", idx); goto fail; } op.learn = 1; }
             if (!rowops_push(out, &op)) { snprintf(err, errcap, "out of memory"); goto fail; }
         } else strcpy(op.row, target);
@@ -229,7 +229,7 @@ fail:
     objs->count = obase; return 0;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------------------- validation
+// ----- validation
 // ImportText silently turns garbage numbers into 0 and reports success, so numbers and booleans are checked here before they reach the engine.
 // kind is the property class name without the "Property" suffix (Int, Float, Bool, Byte, Enum, Name, Str, Text, SoftObject, ...). Returns 1 if the text is acceptable.
 static int rowval_check(const char *kind, const char *text, char *why, size_t cap) {
@@ -260,10 +260,8 @@ static int rowval_check(const char *kind, const char *text, char *why, size_t ca
     return 1;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------------------- hard object references
-// A value for an Object / Class / Interface property makes ImportText load the named package. If that package exists nowhere (a runtime-created object such as
-// /Game/Mods/X/Item.Item, or a typo) the load never finishes and the boot hangs. The loader therefore checks such values first
-// (rows_objref_ok in rowedit.inc: object in memory, or package file in a pak) and skips the edit with a log line. These helpers are the pure text part.
+// ----- hard object references
+// Pure text helpers for rows_objref_ok (rowedit.inc explains the boot hang).
 static int rowval_is_hardref(const char *kind) { return !strcmp(kind, "Object") || !strcmp(kind, "Class") || !strcmp(kind, "Interface"); }
 // "/Game/A/B.B", "\"/Game/A/B.B\"" or "Class'/Game/A/B.B'" -> full = "/Game/A/B.B", pkg = "/Game/A/B". Returns 0 if the text names no path (empty, None, a bare name).
 static int rowval_objpath(const char *text, char *full, size_t fcap, char *pkg, size_t pcap) {
@@ -284,7 +282,7 @@ static int rowval_pakbase(const char *pkg, char *out, size_t cap) {
     return 0;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------------------- conflicts
+// ----- conflicts
 typedef struct { char table[ROWS_TABLE_MAX], row[ROWS_NAME_MAX], prop[ROWS_NAME_MAX]; int first_mod, last_mod; int same; } RowConflict;      // same = every mod that set it used the same text
 static const RowOp *g_cmp_ops;
 static int rowop_key_cmp(const void *a, const void *b) {

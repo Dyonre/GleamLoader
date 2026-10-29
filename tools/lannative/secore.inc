@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // secore.inc - script extender core (included by lannative.c after plugins.inc). API v2.1 additions to AbsolverSE.h:
 //   symbols      : hook_symbol / find_symbol from LanNative\symbols.bin (tools\lannative\gen_symbols.py: name -> RVA + original bytes + stolen length, from the game's PDB)
 //   ProcessEvent : one loader hook on UObject::ProcessEvent: on_call(class, function, pre, post) by name, and the call tracer (ring buffer, dumped to LanNative\trace\)
@@ -202,7 +201,7 @@ static void se_nat_log(uint64_t id, void *ctx) {
 static int api_p_trace_function(const AbsApi *self, const char *cls, const char *func) {
     int p = plug_of(self); if (p < 0 || !cls || !func || g_nt_n >= 256 || !se_func_off()) return 1;
     void *c = se_find_class(cls); uint8_t *fn = c ? se_class_find_function(c, func) : NULL; if (!fn) { logf_("trace_function %s::%s: function not found", cls, func); return 2; }
-    for (int i = 0; i < g_nt_n; i++) if (g_nt[i].fn == fn) return 0;                 // already traced
+    for (int i = 0; i < g_nt_n; i++) if (g_nt[i].fn == fn) return 0;
     if (!g_stub_mem) { g_stub_mem = VirtualAlloc(NULL, 64 * 1024, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE); g_stub_used = 0; if (!g_stub_mem) return 3; }
     if (g_stub_used + 96 > 64 * 1024) return 4;
     void **slot = (void **)(fn + g_func_off); uint64_t id = (uint64_t)g_nt_n, orig = (uint64_t)(uintptr_t)*slot, logger = (uint64_t)(uintptr_t)se_nat_log;
@@ -224,7 +223,6 @@ static int api_p_trace_function(const AbsApi *self, const char *cls, const char 
 }
 // frame_peek_int: the first argument of a native function called from Blueprint, read from the script bytecode WITHOUT consuming it (the native exec function reads the arguments from the
 // FFrame's code stream). Understands integer constants and variable reads (the common forms); returns 0 if the expression is something else.
-// FFrame (UE 4.18): Node +0x10, Object +0x18 (the calling Blueprint object), Code +0x20, Locals +0x28.
 static int api_p_frame_peek_int(const AbsApi *self, void *frame, int *out) {
     (void)self; if (!frame || !out) return 0; int ok = 0;
     __try {
@@ -271,7 +269,6 @@ static int se_params_of(void *func, SeParam *out, int cap) {
     for (int i = 1; i < n; i++) { SeParam t = out[i]; int j = i - 1; while (j >= 0 && out[j].off > t.off) { out[j + 1] = out[j]; j--; } out[j + 1] = t; }
     return n;
 }
-// args[i] points at the value of the i-th non-return parameter (in declaration order); *ret receives the return value (can be NULL). Out parameters are copied back into args[i].
 static int api_p_call_params(const AbsApi *self, void *obj, void *func, void **args, void *ret) {
     if (!obj || !func) return 0; if (!api_p_is_game_thread(self)) { logf_("plugin %s: call_function_params refused - not on the game thread", plug_name_of(plug_of(self))); return 0; }
     int ok = 0; SeParam ps[32]; int n = 0; uint8_t *block = NULL;
@@ -417,7 +414,7 @@ static int api_p_dump_sdk(const AbsApi *self, const char *name) {
 
 // ----- events: timers, world loaded
 #include "timers.h"
-static TmTable g_tm; static int g_tm_full_logged;                  // 256 timer slots shared by all plugins (timers.h); ids > 0; one-shot slots are freed when they fire
+static TmTable g_tm; static int g_tm_full_logged;                  // timers.h
 typedef struct { int plugin; void (*cb)(const char *map, void *user); void *user; } SeWorldCb;
 static SeWorldCb g_worldcb[16]; static int g_worldcb_n; static void *g_se_world, *g_se_world_gs; static unsigned g_se_world_gen;   // gen: +1 per new world (0 = none yet); modes.inc / mapscript.inc compare it
 static int se_timer_add(const AbsApi *self, float seconds, int repeat, void (*cb)(void *), void *user) {      // timer id (> 0) or 0
@@ -534,7 +531,7 @@ static int api_p_on_damage(const AbsApi *self, void (*cb)(void *, float, int, vo
     if (!g_orig_dmg) { g_orig_dmg = (void (*)(void *, float, unsigned char))api_p_hook_symbol(self, "AFightingCharacter::ApplyDamage", (void *)hk_apply_damage); if (!g_orig_dmg) return 2; }
     EnterCriticalSection(&g_lock); g_dmgcb[g_dmgcb_n].plugin = p; g_dmgcb[g_dmgcb_n].cb = cb; g_dmgcb[g_dmgcb_n].user = user; g_dmgcb_n++; LeaveCriticalSection(&g_lock); return 0;
 }
-// kv store: LanNative\data\<plugin>.txt, lines "key=value" (value without newlines). Mod data lives here, never in the game's save format.
+// kv store: LanNative\data\<plugin>.txt, lines "key=value" (value without newlines).
 static int se_kv_path(const AbsApi *self, wchar_t *out) {
     int p = plug_of(self); if (p < 0) return 0; wchar_t dir[MAX_PATH], n[100]; swprintf(dir, MAX_PATH, L"%sdata", g_dir); CreateDirectoryW(dir, NULL);
     u8_to_w(plug_name_of(p), n, 100); swprintf(out, MAX_PATH, L"%ls\\%ls.txt", dir, n); return 1;
@@ -582,7 +579,7 @@ static int api_p_add_to_root(const AbsApi *self, void *obj, int root) {
     int ok = 0; __try { ok = se_root_flag(obj, root); } __except (EXCEPTION_EXECUTE_HANDLER) { ok = 0; }
     logf_("plugin %s: add_to_root(%p, %d) -> %d", plug_name_of(plug_of(self)), obj, root, ok); return ok;
 }
-// create_asset(src, "/Game/Mods/<Mod>/<Name>.<Name>"): a copy of src (or a new object when src is a UClass) living in its own package, rooted so the GC keeps it. Only /Game/Mods/ paths.
+// create_asset: only /Game/Mods/ paths; rooted so the GC keeps it.
 static void *api_p_create_asset(const AbsApi *self, void *src, const char *path) {
     const char *who = plug_name_of(plug_of(self)); void *result = NULL;
     if (!src || !path || strncmp(path, "/Game/Mods/", 11) != 0 || strlen(path) > 220) { logf_("plugin %s: create_asset refused: src %p path '%s' (must be under /Game/Mods/)", who, src, path ? path : "(null)"); return NULL; }
@@ -771,7 +768,7 @@ typedef void (*Avoid_t)(void *, float, void *, uint64_t, uint64_t, uint64_t, uin
 static Parry_t g_o_parry; static Avoid_t g_o_avoid;
 static void se_defense_event(void *dc, void *attacker, uint64_t attack, int outcome) {
     __try { AbsHitInfo h; memset(&h, 0, sizeof h); h.victim = se_owner(dc); h.attacker = attacker;
-            if (outcome == ABS_HIT_PARRIED) ev_parry_roles(se_owner(dc), attacker, &h.victim, &h.attacker);   // NotifyParrySuccessful: this = the attacker's component, actor = the parrier
+            if (outcome == ABS_HIT_PARRIED) ev_parry_roles(se_owner(dc), attacker, &h.victim, &h.attacker);
             h.attack_id = se_attack_name(attack, h.attack, sizeof h.attack); h.outcome = outcome; se_fire_hit(&h); }
     __except (EXCEPTION_EXECUTE_HANDLER) { logf_("events: EXCEPTION 0x%08lX in a parry / dodge event", GetExceptionCode()); }
 }

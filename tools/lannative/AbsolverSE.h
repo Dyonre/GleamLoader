@@ -145,7 +145,7 @@ struct AbsApi {
     int   (*call_function)(const AbsApi *self, void *obj, void *func, void *params);/* UObject::ProcessEvent: params = the function's parameter block (inputs, then outputs), game thread only */
     int   (*for_each_object)(const AbsApi *self, void (*cb)(void *obj, void *user), void *user);              /* every live UObject (slow: scan, game thread); returns the count */
 
-    /* ---- v2.1: script extender additions (appended; check api->size >= offsetof end of the last field you use). Class / function names are the engine's SHORT names
+    /* ---- v2.1: script extender additions. Class / function names are the engine's SHORT names
      *      without the U/A prefix, as listed in the SDK dump: "StatsComponent", "BP_CharacterMenu_C", "BPF_IsFightingStyleUnlocked". */
     void *(*hook_symbol)(const AbsApi *self, const char *name, void *detour);              /* like hook_rva but by PDB name from LanNative\symbols.bin ("UObject::ProcessEvent"); returns the next function in the chain */
     uint32_t (*find_symbol)(const AbsApi *self, const char *name);                         /* RVA of a hookable symbol, 0 if unknown */
@@ -207,7 +207,7 @@ struct AbsApi {
     int   (*char_info)(const AbsApi *self, void *character, struct AbsCharInfo *out);                                           /* fill *out (set out->size = sizeof *out first); 1 = ok. style needs the game thread (-1 elsewhere) */
 
     /* ---- v2.4: content registry. Mods ship JSON in Mods\<mod>\content\<kind>\*.json; the loader validates every entry, resolves duplicate ids by load order and calls the
-     *      kind's handler. Built in: "items", "styles". register_content_kind adds more (call it in AbsPlugin_Load; entries are processed once at engine ready, again before a save resolves its items).
+     *      kind's handler. Built in: "maps", "items", "styles", "powers", "npcs", "bots", "ranks", "bot_trials", "poise", "clones", "anim_sets", "weapons". register_content_kind adds more (call it in AbsPlugin_Load; entries are processed once at engine ready, again before a save resolves its items).
      *      validate(json, err, cap, user): json = compact text of ONE entry object; return 1 if usable, else 0 and write the reason into err (the entry is skipped and logged).
      *      apply(mod_id, entry_id, json, user): return 0 when done (it is not called again), nonzero to be retried at the next pass. Both run on the game thread, inside the plugin's crash guard.
      *      Returns 0 = registered, 1 = bad arguments / table full, 2 = the kind already has a handler. docs\PLUGIN-API.md "Content registry". */
@@ -249,7 +249,7 @@ struct AbsApi {
     int   (*combo_load)(const AbsApi *self, int family, const char *name);                                 /* make that deck current: FightingPlayerController::BPF_LoadComboFromName(name, family, Current) (also loads it into the attack component); 1 = ok */
     int   (*combo_current)(const AbsApi *self, int family, char *name, int cap);                           /* current deck name of the family; returns its index or -1 */
     int   (*set_combat_style)(const AbsApi *self, void *character, int style);                             /* local player (character NULL or the local pawn): FightingPlayerController::BPF_SetPlayerCombatStyle(style, Current); 1 = the style is now `style` */
-    int   (*on_weapon_changed)(const AbsApi *self, void (*cb)(void *character, void *old_item, void *new_item, int handled, void *user), void *user);   /* the local player's equipped weapon (InventoryComponent.m_EquippedWeapon) changed; polled every tick; fires once with old_item NULL when the character appears; handled is always 0 (picked-up weapons are not reported yet) */
+    int   (*on_weapon_changed)(const AbsApi *self, void (*cb)(void *character, void *old_item, void *new_item, int handled, void *user), void *user);   /* the local player's equipped weapon (InventoryComponent.m_EquippedWeapon) changed; polled every tick; fires once with old_item NULL when the character appears; handled is always 0 (picked-up weapons are not reported here; use on_handled_weapon) */
     int   (*on_style_changed)(const AbsApi *self, void (*cb)(void *character, int old_style, int new_style, void *user), void *user);                   /* the local player's fighting style changed (PlayerFightingComponent.m_uiCombatStyle); polled every tick; first call old_style -1 */
     void *(*prop_ptr_path)(const AbsApi *self, void *obj, const char *path);                                /* address of a nested property: "m_SavedData.m_CurrentComboSaveName[1]", "OwningGameInstance.m_CurrentSave" (through structs, object pointers, static arrays and TArray elements); NULL (logged) if a step is missing */
     int   (*fname_make)(const AbsApi *self, const char *utf8, uint64_t *out);                               /* FName from a string (added to the name table); 0 = ok */
@@ -277,7 +277,7 @@ struct AbsApi {
     /* ---- v2.14: NPCs (npcs.inc, docs/PLUGIN-API.md "NPCs"). Game thread only. The content kind "npcs" is built into the loader. */
     void *(*npc_spawn)(const AbsApi *self, const char *archetype, const float loc[3], const float *yaw_deg, const char *class_path);   /* spawn an NPC AT loc (NULL = 350 uu in front of the local character): `archetype` = an ArchetypeAsset path ("/Game/DB/AI/NPCs/Trickster/Trickster.Trickster", or a mod copy "/Game/Mods/<mod>/<id>.<id>") or the plain id of an npcs content entry (then its faction / aggro / reactions apply). The spawner actor is placed at loc BEFORE the spawn and the pawn is never teleported afterwards (a teleported AI NPC never moves again). class_path NULL / "" = the game's generic AI character. Returns the character or NULL */
     int   (*npc_remove)(const AbsApi *self, void *character);                                  /* remove an NPC made by npc_spawn (UnSpawnAi + destroy our spawner), or destroy any other character actor; 1 = ok */
-    int   (*npc_set_target)(const AbsApi *self, void *character, void *target);                /* UAIFightingComponent::BPF_ForceEnemy(target): the NPC goes for that actor (the player: np_player / get_local_player_controller + K2_GetPawn). NULL clears (untested); 1 = ok */
+    int   (*npc_set_target)(const AbsApi *self, void *character, void *target);                /* UAIFightingComponent::BPF_ForceEnemy(target): the NPC goes for that actor (the player: get_local_player_controller + K2_GetPawn). NULL clears (untested); 1 = ok */
     int   (*npc_set_faction)(const AbsApi *self, void *character, int faction);                /* AFightingCharacter::ServerSetFaction(0..5) (written directly if that does not take); returns the faction read back or -1 */
     int   (*faction_can_target)(const AbsApi *self, int attacker_faction, int target_faction, int set);   /* UFactionsManager target table (6 x 6): set -1 = read only, 0 / 1 = write; returns the value now in the table or -1 */
     void *(*npc_archetype)(const AbsApi *self, void *character);                               /* the ArchetypeAsset the character runs (m_ArchetypeDescription.m_Archetype) or NULL */

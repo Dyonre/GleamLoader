@@ -1,7 +1,5 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // hookreg.h - the hook registry: which game functions are patched, by whom, and in what order the detours stack.
 // Pure data logic (no OS calls) so it is testable offline (test\hookreg_test.c). The patching itself lives in plugins.inc / lannative.c.
-//
 // A patched function looks like:   [jmp [rip+0] -> top detour] ...   top detour -> (its "original") -> ... -> bottom detour -> trampoline -> game code.
 // Registering a new detour on an already hooked function does not patch the game code again: the jmp's target address is rewritten to the new
 // detour and the previous top becomes the new detour's "original" (call-next pointer).
@@ -49,6 +47,4 @@ static int hr_bytes_match(const HookEntry *h, const uint8_t *expected, uint32_t 
 static void *hr_stack(HookEntry *h, void *detour, const char *owner) {
     void *prev = h->top; h->top = detour; h->depth++; hr_owner(h, owner); return prev;
 }
-// follow the chain from the top down: returns the n-th element (0 = top detour, depth-1 = bottom detour, depth = trampoline). chain[] holds the
-// "original" pointer each detour was given, oldest first: orig_of[0] = trampoline, orig_of[k] = detour k-1.
 #endif

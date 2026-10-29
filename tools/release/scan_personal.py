@@ -3,7 +3,7 @@
 usage: python scan_personal.py <folder-or-zip> [extra pattern ...]
 
 Patterns checked, as UTF-8 and UTF-16 (how .NET stores string literals): this Windows user name, this computer name, the user's profile
-path, the repo's folder name, plus anything given on the command line. Exit code 1 if anything is found, so the release script can stop.
+path, plus anything given on the command line (pass a folder name or any other identifying text there). Exit code 1 if anything is found, so the release script can stop.
 """
 import getpass, os, socket, sys, zipfile
 

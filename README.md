@@ -13,7 +13,7 @@ The official online mode is not supported and almost certainly will not work wit
 ## Installation
 
 1. Close the game. Download the latest zip from the **Releases** page and unzip it anywhere.
-2. Double-click `Install.bat`. It finds the game through Steam, copies the loader in, keeps the original `Absolver.exe` as `Absolver.exe.eac`, and creates a `Mods` folder.
+2. Double-click `Install.bat`. It finds the game through Steam, copies the loader in, keeps the original `Absolver.exe` as `Absolver.exe.eac`, and creates a `Mods` folder. It also asks GitHub whether a newer release exists (nothing is downloaded; `Install.bat -NoUpdateCheck` skips it). The loader itself never goes online.
 3. Press Play in Steam as usual.
 
 To add a mod, put its folder in `<game folder>\Mods\`. If a mod stops the game from starting, add `-NoMods` to the game's Steam launch options.

@@ -6,15 +6,17 @@
    3. Keeps the game's original Absolver.exe as Absolver.exe.eac and puts the launcher in its place, so Steam's Play button starts the game
       without EasyAntiCheat. Offline and private LAN play only.
    4. Creates the Mods folder.
+   5. Asks GitHub once which Gleam Loader release is the newest and says so if this package is older. It never downloads anything.
+      -NoUpdateCheck skips it (the loader itself never goes online).
 
  It never edits or removes EasyAntiCheat files and never touches saves. It does not move your paks, but the launcher, each time it starts,
  moves every extra .pak (and its .sig) directly in Content\Paks into its own folder under Mods. If a step fails, the steps already done are undone.
  Steam's "Verify integrity of game files" restores the original Absolver.exe; run this installer again afterwards.
  A log of every step is written to install.log next to this script.
 
- Usage:  Install.bat   |   Uninstall.bat   |   Install.ps1 [-GameDir "<game folder>"] [-Uninstall] [-Quiet]
+ Usage:  Install.bat   |   Uninstall.bat   |   Install.ps1 [-GameDir "<game folder>"] [-Uninstall] [-Quiet] [-NoUpdateCheck]
 #>
-param([string]$GameDir, [switch]$Uninstall, [switch]$Quiet)
+param([string]$GameDir, [switch]$Uninstall, [switch]$Quiet, [switch]$NoUpdateCheck)
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logFile = Join-Path $here 'install.log'
@@ -57,6 +59,27 @@ function Has-Text([string]$path, [string]$text, [Text.Encoding]$encoding) {
 }
 function Is-OurLauncher([string]$path) { Has-Text $path $launcherMarker ([Text.Encoding]::Unicode) }
 function Is-OurLoader([string]$path)   { foreach ($m in $loaderMarkers) { if (Has-Text $path $m ([Text.Encoding]::ASCII)) { return $true } }; return $false }
+
+# Version of a loader file from its version information; builds before 0.2.2 carried none of their own.
+function Loader-Version([string]$path) {
+    $vi = (Get-Item -LiteralPath $path).VersionInfo
+    if ($vi.ProductName -eq 'Gleam Loader' -and $vi.ProductVersion) { return $vi.ProductVersion }
+    return $null
+}
+
+# One request to GitHub's public release list: reads the newest release's tag, downloads nothing. Any failure only prints a note.
+function Check-Latest([string]$have) {
+    if ($NoUpdateCheck) { Say 'Update check skipped (-NoUpdateCheck).'; return }
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/Dyonre/GleamLoader/releases/latest' -TimeoutSec 5 -Headers @{ 'User-Agent' = 'GleamLoader-installer' }
+        $latest = ([string]$r.tag_name).TrimStart('v')
+        if (-not $have) { Say "Newest Gleam Loader release: $latest ($($r.html_url))"; return }
+        if ([version]$latest -gt [version]$have) { Say "A newer Gleam Loader is available: $latest (this package is $have). Download it from $($r.html_url)" }
+        elseif ([version]$latest -lt [version]$have) { Say "This package ($have) is newer than the latest published release ($latest)." }
+        else { Say "This is the newest Gleam Loader release ($have)." }
+    } catch { Say "Could not check for a newer release (offline or GitHub unreachable). Installing anyway." }
+}
 
 function Run {
     Say ('--- {0} ---' -f $(if ($Uninstall) { 'Uninstall' } else { 'Install' }))
@@ -102,6 +125,13 @@ function Run {
     foreach ($f in 'version.dll', 'AbsolverModLauncher.exe') {
         if (-not (Test-Path -LiteralPath (Join-Path $here $f))) { throw "$f is missing next to the installer." }
     }
+    $pkgVer = Loader-Version (Join-Path $here 'version.dll')
+    Say ('This package: Gleam Loader {0}' -f $(if ($pkgVer) { $pkgVer } else { '(no version information)' }))
+    if ((Test-Path -LiteralPath $dll) -and (Is-OurLoader $dll)) {
+        $curVer = Loader-Version $dll
+        Say ('Installed now: Gleam Loader {0}' -f $(if ($curVer) { $curVer } else { '0.2.1 or older' }))
+    }
+    Check-Latest $pkgVer
     if ((Test-Path -LiteralPath $dll) -and -not (Is-OurLoader $dll)) {
         throw "$dll already exists and is not ours (another mod uses that file). Refusing to overwrite it."
     }

@@ -67,7 +67,7 @@ done:
     if (uninit) CoUninitialize();
     return px;
 }
-// texture_from_file(file, path): file = absolute, or relative to the calling plugin's mod folder (content mods: the content handler passes an absolute path)
+// texture_from_file(file, path): file = an absolute path (a content mod's icon_file is resolved against its mod folder by the content handler before this is called)
 static void *api_p_texture_from_file(const AbsApi *self, const char *file, const char *path) {
     const char *who = plug_name_of(plug_of(self)); if (!file || !path) return NULL;
     wchar_t wf[MAX_PATH]; u8_to_w(file, wf, MAX_PATH); int w = 0, h = 0; char why[200] = "";

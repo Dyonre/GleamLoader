@@ -20,13 +20,15 @@ static int modpak_path(const char *mount, const char *entry, char *out, size_t c
 }
 
 // A pak ends with a 44-byte footer (magic 0x5A6F12E1, version, index offset, index size, index SHA-1). Cheap check done before the engine mounts a file.
-// Returns 1 = plausible pak, 0 = too small or no footer magic.
+// Returns 1 = plausible pak, 0 = too small or no footer magic, -1 = the footer's index lies outside the file.
 static int modpak_footer_ok(FILE *f) {
-    unsigned char tail[44]; uint32_t magic;
+    unsigned char tail[44]; uint32_t magic; int64_t offset, bytes;
     if (_fseeki64(f, 0, SEEK_END)) return 0;
     int64_t size = _ftelli64(f); if (size < 44) return 0;
     if (_fseeki64(f, size - 44, SEEK_SET) || fread(tail, 1, 44, f) != 44) return 0;
     memcpy(&magic, tail, 4); if (magic != 0x5A6F12E1) return 0;
+    memcpy(&offset, tail + 8, 8); memcpy(&bytes, tail + 16, 8);
+    if (offset < 0 || bytes < 0 || bytes > size - 44 || offset > size - 44 - bytes) return -1;     // the index must end before the footer (no overflow: compared by subtraction)
     return 1;
 }
 

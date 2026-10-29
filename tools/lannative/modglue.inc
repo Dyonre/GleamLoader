@@ -231,7 +231,7 @@ static void mods_mount_all(void *self) {
             FILE *f = _wfopen(fullbs, L"rb");
             int fok = f ? modpak_footer_ok(f) : 0;
             if (fok != 1) {                                  // the engine's mount code is not safe to call on a file that is not a pak
-                const char *why = !f ? "cannot be read" : "bad footer"; if (f) fclose(f);
+                const char *why = !f ? "cannot be read" : fok < 0 ? "index outside the file" : "bad footer"; if (f) fclose(f);
                 mods_warn("%s/%s is not a valid pak file (%s) - NOT mounted", me->name, paks[k], why);
                 RPT("[FAILED] %s/%s  not a valid pak file (%s)\r\n", me->name, paks[k], why); continue;
             }

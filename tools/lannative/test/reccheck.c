@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
         int m = res.order[k]; posname[k] = list.mods[m].name; snprintf(pat, sizeof pat, "%s\\%s\\rows.json", argv[1], list.mods[m].name); char *t = slurp(pat);
         { WIN32_FIND_DATAA pf; HANDLE ph; snprintf(pat, sizeof pat, "%s\\%s\\*.pak", argv[1], list.mods[m].name); ph = FindFirstFileA(pat, &pf);       // same pre-mount check as the loader
           if (ph != INVALID_HANDLE_VALUE) { do if (!(pf.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) { char pp[1400]; snprintf(pp, sizeof pp, "%s\\%s\\%s", argv[1], list.mods[m].name, pf.cFileName); FILE *pk = fopen(pp, "rb");
-              int pok = pk ? modpak_footer_ok(pk) : 0; if (pok != 1) { printf("[ERROR] %s/%s: not a valid pak file (%s)\n", list.mods[m].name, pf.cFileName, !pk ? "cannot be read" : "bad footer"); problems++; } if (pk) fclose(pk); } while (FindNextFileA(ph, &pf)); FindClose(ph); } }
+              int pok = pk ? modpak_footer_ok(pk) : 0; if (pok != 1) { printf("[ERROR] %s/%s: not a valid pak file (%s)\n", list.mods[m].name, pf.cFileName, !pk ? "cannot be read" : pok < 0 ? "index outside the file" : "bad footer"); problems++; } if (pk) fclose(pk); } while (FindNextFileA(ph, &pf)); FindClose(ph); } }
         if (!t) { snprintf(pat, sizeof pat, "%s\\%s\\rows.json", argv[1], list.mods[m].name); WIN32_FILE_ATTRIBUTE_DATA fa;
             if (GetFileAttributesExA(pat, GetFileExInfoStandard, &fa) && (fa.nFileSizeHigh || fa.nFileSizeLow > (8u << 20))) { printf("[ERROR] %s/rows.json is larger than 8 MB and was not read\n", list.mods[m].name); problems++; }
             continue; }

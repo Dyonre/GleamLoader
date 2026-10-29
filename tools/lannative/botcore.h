@@ -80,17 +80,8 @@ static const float KX_DEF[KX_N] = { 1.0f, 0.2f, -1.0f, 0.0f, 0.0f, 450.0f, 1.0f,
 //   dodge_after_string   string over: dodge back
 //   draw_tick_s          weapon decision tick
 //   draw_gap_s           gap after a draw / sheathe
-//   drunk_var_w0         Drunken ability variant weights (all 0 = fixed rule: Stagger side avoid, Faejin by the strike origin)
-//   fu_delay_f0          follow-up delay after defence kind 0 (guard parry avoid absorb dodge; -1 = table + followup_delay_f)
-//   fu_alt0              follow-up alternate rate after defence kind 0 (-1 = followup_alt_rate)
-//   fu_delay_f1          follow-up delay after defence kind 1 (guard parry avoid absorb dodge; -1 = table + followup_delay_f)
-//   fu_alt1              follow-up alternate rate after defence kind 1 (-1 = followup_alt_rate)
-//   fu_delay_f2          follow-up delay after defence kind 2 (guard parry avoid absorb dodge; -1 = table + followup_delay_f)
-//   fu_alt2              follow-up alternate rate after defence kind 2 (-1 = followup_alt_rate)
-//   fu_delay_f3          follow-up delay after defence kind 3 (guard parry avoid absorb dodge; -1 = table + followup_delay_f)
-//   fu_alt3              follow-up alternate rate after defence kind 3 (-1 = followup_alt_rate)
-//   fu_delay_f4          follow-up delay after defence kind 4 (guard parry avoid absorb dodge; -1 = table + followup_delay_f)
-//   fu_alt4              follow-up alternate rate after defence kind 4 (-1 = followup_alt_rate)
+//   drunk_var_w0..2      Drunken ability variant weights (all 0 = fixed rule: Stagger side avoid, Faejin by the strike origin)
+//   fu_delay_f0..4 / fu_alt0..4   follow-up delay (frames) / alternate rate after defence kind 0 guard 1 parry 2 avoid 3 absorb 4 dodge (-1 = table + followup_delay_f / followup_alt_rate)
 typedef struct {
     int policy, ruleset, difficulty;
     BotSkill skill;
@@ -131,7 +122,7 @@ typedef struct {
     // weapon economy, learned, not scripted: draw_w = chance per neutral decision (0.25 s) to draw when the weapon is affordable and the moment is
     // calm; draw_reserve = shards to keep AFTER paying for the draw (for a power); sheathe_dur = put it away below this durability at a moment the opponent cannot hit; wpn_cost = the weapon's draw cost
     // (preset / trainer; 0 = no weapon decisions: the game adapter's fixed policy runs instead)
-    float draw_w, draw_reserve, sheathe_dur, wpn_cost, draw_dist;
+    float draw_w, draw_reserve, sheathe_dur, wpn_cost, draw_dist;   // draw_dist: a draw only when the opponent is at least this far (or stunned)
     // learned knobs (defaults in bot_cfg_init)
     float dodge_w_thrust, dodge_w_other;   // dodge score vs a thrust / any other motion
     float dodge_lead_frac;                 // dodge pressed this share of the opponent's startup before the strike (<= 0: dodge_lead_f)
@@ -142,15 +133,14 @@ typedef struct {
     float backoff_s;                       // length of a step back (s)
     float tired_retreat;                   // tired: chance to step back instead of raising the guard
     float followup_alt_rate, followup_delay_f;   // after a defence: share of follow-ups thrown with the alternate input / frames added to the table delay (defaults: table only)
-    // powers: kind per slot (1 defensive window, 2 acts on the opponent, 3 self buff; the trainer / preset sets it from the equipped item) and its shard cost; learned use
-    int power_kind[2]; float power_cost[2], power_cd[2];   // power_cd: cooldown (s) after use; the game adapter enforces cost + cooldown itself (an NPC's power use is never charged by the game)   // kind = bitmask: 1 defensive window, 2 acts on the opponent, 4 self buff, 8 makes space
+    // powers: kind bitmask per slot (set by the trainer / preset from the equipped item), shard cost, cooldown
+    int power_kind[2]; float power_cost[2], power_cd[2];   // kind bitmask: 1 defensive window, 2 acts on the opponent, 4 self buff, 8 makes space; power_cd: cooldown (s); the adapter charges cost + cooldown (the game never charges an NPC)
     float kx[KX_N];          // learned knobs (KX_*)
     float starter_f[4];      // startup frames of each stance's first deck row (the adapter fills it; 0 = unknown): the interrupt option
     float power_lead_f;      // defensive power pressed this many frames before the expected hit
     float power_off_w;       // chance per neutral decision to use an opponent power (kind 2) when the opponent is stunned, recovering or out of range
-    float power_buff_w;      // chance per neutral decision to use a self buff (kind 3) out of range
+    float power_buff_w;      // chance per neutral decision to use a self buff (kind 4) out of range
     float power_reserve;     // shards kept after paying for an offensive / buff power
-   // draw_dist: a draw only when the opponent is at least this far (or stunned)
     // deck (bot_decks shape): rows per start quadrant (0 FL 1 FR 2 BR 3 BL) and the alternate per quadrant; the adapter plays the real deck (combo manager), this
     // copy is for planning: guard-hole rows (U1) and stance choice.
     char deck[4][BOT_DECK_MAX][16]; int deck_n[4]; char alt[4][16];
@@ -160,13 +150,13 @@ typedef struct {
 typedef struct {
     double t_next_draw, t_next_power, relock_at; int unlocked;   // relock_at / unlocked: an unlocked guard (kx unlock_guard_w)                           // draw / sheathe gate; offensive / buff power gate
     BotSide last_me;                                            // the last own observation (callbacks read the stamina)
-    unsigned punish_seq; int punish_roll; double tired_block;
-    double ab_t; int ab_pending, wc_done;                       // own defensive ability pressed (whiff cancel)                       // the learned punish decision for the opponent's current attack
+    unsigned punish_seq; int punish_roll; double tired_block;   // the learned punish decision for the opponent's current attack
+    double ab_t; int ab_pending, wc_done;                       // own defensive ability pressed (whiff cancel)
     int fsm; double t_state, t_last_start, t_next_neutral, guard_until, punish_until, feint_fu_until, t_next_open, tired_since, t_wait_start; int guard_up, chain, string_on, feint_fu;
     unsigned def_seq, own_seq, gold_seq; int def_kind;       // last opponent attack answered, last own attack seen, own attack a follow-up was planned for
     int tries[BT_N], oks[BT_N];
-    double press_until; int follow_pending; int tired;
-    double dodge_t[4]; int dodge_i;                             // last dodges (budget / cooldown)          // tired: stamina stop active                    // pressure window after an own hit / defence; a planned follow-up is queued
+    double press_until; int follow_pending; int tired;   // pressure window after an own hit / defence; a planned follow-up is queued; tired: stamina stop active
+    double dodge_t[4]; int dodge_i;                             // last dodges (budget / cooldown)
     int proof_i; double proof_t; int proof_wait;              // proof policy: step index, time the step started, 1 = waiting for an opponent attack
     BotRng rng;
 } BotState;
@@ -193,10 +183,7 @@ static void bot_cfg_init(BotCfg *c) {
 }
 static int bot_tech_id(const char *s) { for (int i = 0; i < BT_N; i++) if (s && !strcmp(s, BT_IDS[i])) return i; return -1; }
 static int bot_enum(const char *s, const char *const *names, int n) { for (int i = 0; i < n; i++) if (s && !strcmp(s, names[i])) return i; return -1; }
-// one "brain" key (preset JSON). Returns 1 = taken, 0 = unknown key / bad value (the adapter logs it).
-// keys: policy tech|proof|idle, ruleset, difficulty (applies the difficulty defaults FIRST: put it before the other keys), react_mean_ms react_sd_ms react_floor_ms,
-// exec_error_f, gold_miss, aggression, feint_rate, stance_rate, gold_rate, gold_offset_f, ability_lead_f, dodge_lead_f, approach_uu, range_uu, chain_max, power_slot,
-// seed, tech.<id> on|off (or 1|0), proof "guard,ability,dodge,feint,stance,gold,power,lock"
+// one "brain" key (preset JSON). Returns 1 = taken, 0 = unknown key / bad value (the adapter logs it). "difficulty" applies its defaults, so it must come first (bai_load_cfg does that).
 static int bot_cfg_set(BotCfg *c, const char *k, const char *v) {
     if (!k || !v) return 0; float f = (float)atof(v); int on = !strcmp(v, "on") || !strcmp(v, "1") || !strcmp(v, "true") || !strcmp(v, "use");
     if (!strcmp(k, "policy")) { static const char *const p[4] = { "tech", "proof", "idle", "nn" }; int i = bot_enum(v, p, 4); if (i < 0) return 0; c->policy = i; return 1; }
@@ -443,7 +430,7 @@ static int bot_step(const BotCfg *c, BotState *s, const BotObs *o, double now, d
         if (c->tech[BT_TG] && !s->guard_up && bc_pending(q, -1) == 0 && o->dist < c->range_uu + 60) {
             if (bc_rand(&s->rng) < c->tired_retreat) { BotCmd m = bot_cmd(BC_MOVE, now, "BO"); m.dir = 0; m.secs = c->backoff_s; bc_push_at(q, m, now); }   // step out of range: no guard, so the gauge regenerates at the full rate
             else if (c->tech[BT_GD]) { bot_push_target(q, bot_cmd(BC_GUARD, now, "GD"), now, s, c); s->guard_up = 1; s->guard_until = now + c->tired_guard_s; } }
-        return s->fsm; }                                       // only defence while tired (the DEFENCE block above still runs)
+        return s->fsm; }
     // PUNISH: the opponent is in recovery (or its attack was answered) and we are free
     if (punish_now && s->punish_roll) {
         bot_relock(q, s, now); { BotCmd a = bot_cmd(BC_ATTACK, now, "PN"); a.input = bc_rand(&s->rng) < c->kx[KX_PUNISH_ALT_RATE]; bot_push_target(q, a, now, s, c); } bot_note(s, BT_PN, 0); s->fsm = BS_PUNISH; s->t_state = now; s->chain = 0; s->string_on = 1;
@@ -485,7 +472,7 @@ static int bot_step(const BotCfg *c, BotState *s, const BotObs *o, double now, d
         if (!me->weapon_out && me->wdur != 0 && bo_v(me, BO_SHARDS) >= c->wpn_cost + c->draw_reserve && calm && bc_rand(&s->rng) < c->draw_w) { bc_push_at(q, bot_cmd(BC_DRAW, now, "WD"), now); s->t_next_draw = now + c->kx[KX_DRAW_GAP_S]; return s->fsm; }
         s->t_next_draw = now + c->kx[KX_DRAW_TICK_S];
     }
-    // POWERS: an opponent power (kind 2) on an opening / at range, a self buff (kind 3) out of range; affordable after the reserve; learned rates
+    // POWERS: an opponent power (kind 2) on an opening / at range, a self buff (kind 4) out of range, space (kind 8); affordable after the reserve; learned rates
     if (!bo_attacking(me) && !s->guard_up && now >= s->t_next_power && bc_pending(q, -1) == 0) {
         s->t_next_power = now + 0.25;
         for (int i = 0; i < 2; i++) {

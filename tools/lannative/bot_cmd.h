@@ -57,7 +57,7 @@ static uint32_t bc_push(BotQueue *q, BotCmd c, const BotSkill *k, BotRng *r, int
     if (c.type == BC_ATTACK && c.gold && k->gold_miss > 0 && bc_rand(r) < k->gold_miss) c.offset_f += k->gold_miss_late_f;   // deliberate human miss: press late
     if (d < c.seen) d = c.seen; c.due = d; c.id = ++q->next_id; q->q[q->n++] = c; return c.id;
 }
-// exact time, no knobs (scripted tests)
+// exact time, no knobs
 static uint32_t bc_push_at(BotQueue *q, BotCmd c, double at) { if (q->n >= BC_QCAP) { q->dropped++; return 0; } c.due = at; c.id = ++q->next_id; q->q[q->n++] = c; return c.id; }
 // the earliest command with due <= now (removed); 1 = got one
 static int bc_pop_due(BotQueue *q, double now, BotCmd *out) {

@@ -1,11 +1,10 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // bottrial.inc - solo combat trials against bots (included at the end of bots.inc). API: docs\PLUGIN-API.md "Bot trials (v2.16)".
 // Content kind "bot_trials" (Mods\<mod>\content\bot_trials\*.json): {id, name, map, bot | bots[] (a gauntlet), rounds_to_win, ai_level, ai_level_step, rewards (a ranks id),
 //   spawn_distance, round_gap, round_seconds, end_delay, return, menu}. Started from the F2 Mods page ("Content: Bot trial: <name>") or bot_trial_start(id).
 // Flow (one 0.25 s timer): solo_duel(1) + travel(map) -> the map's 1v1 game mode reaches InProgress -> m_iNbWinningRounds = rounds_to_win -> each round: npc_spawn(bot) at the
-//   other team's player start like a second player (fallback: spawn_distance in front of the player; the spawner is placed there, the AI pawn is never teleported) at the
-//   stage's AI level, approach = RUN (MoveToActor, no pathfinding) + LOCK-MOVE (SetTarget + movement input) -> the plugin counts rounds ITSELF from on_death (+ a dead-state poll):
-//   the stock solo duel never scores a kill of an NPC (an AI has no player state; logged at every round), so a player point is written into the player state's m_Scores
+//   other team's player start like a second player (fallback: spawn_distance in front of the player) at the
+//   stage's AI level, approach = RUN (MoveToActor; pathfinding only on a runtime navmesh) + LOCK-MOVE (SetTarget + movement input) -> the plugin counts rounds ITSELF from on_death (+ a dead-state poll):
+//   player-like trials give the bot a player state, so the stock code scores the kills; otherwise (or if that fails) a player point is written into the player state's m_Scores
 //   (BPF_GetTeamScore sums them): the stock team score, the HUD and the map script "score" events see a real scored point.
 //   -> next round / next bot (gauntlet, AI level + ai_level_step per bot) -> trial_reward(pay) -> banner -> travel back. Pure logic: bottrial.h.
 #include "bottrial.h"
@@ -115,7 +114,7 @@ static void tr_on_attack(void *ch, int id, const char *attack, void *u) { (void)
 
 // approach (no navmesh): the fight AI walks with MoveTo / UNavigationSystem::MoveAlongSurface (ULockMoveBTTask), so in a duel arena without a navmesh it gets its
 // target and the attack ticket but never moves (it stays at ~300 uu). AddMovementInput alone does not move a bot 245-360 uu away either. bottrial.h btr_approach:
-//   RUN (> TR_LOCK_RANGE): AIController.MoveToActor(player, bUsePathfinding = false): a straight path-less move (the engine's abstract nav data, no navmesh), re-issued every
+//   RUN (> TR_LOCK_RANGE): AIController.MoveToActor(player): path-less, or pathfinding when the scene's runtime navmesh is ready, re-issued every
 //     0.5 s from tr_tick because the behaviour tree may abort it; the bot runs like a player would, without a lock.
 //   LOCK-MOVE (<= TR_LOCK_RANGE): SetTarget(player) once per round (the lock target the fight tree needs for Combat) + APawn::AddMovementInput each frame until TR_STOP.
 // Attacks, defence and stance changes stay the AI's own. "approach_assist": off = none of this; on / auto = from the spawn on.
@@ -142,7 +141,7 @@ static void tr_frame(float dt, void *u) {
     float dir[3] = { dx / d, dy / d, 0 }, scale = 1.f; uint8_t force = 1; void *args[3] = { dir, &scale, &force };
     if (CA->call_function_params(CA, g_trs.bot, fn, args, NULL)) g_trs.assist_frames++;
 }
-static void tr_run_frame(void *p, float d) {                                                        // RUN: MoveToActor on the bot's AI controller, path-less; re-issued whenever the controller is not moving
+static void tr_run_frame(void *p, float d) {                                                        // RUN: MoveToActor on the bot's AI controller; re-issued whenever the controller is not moving
     void **cp = (void **)CA->prop_ptr(CA, g_trs.bot, "Controller"), *c = cp && tk_ptr_ok(*cp) ? *cp : NULL;
     if (!c || !CA->is_a(CA, c, "AIController")) { if (g_trs.run_calls++ < 2) logf_("bottrial: %s: approach RUN: the bot has no AIController (%p)", g_trs.id, c); return; }
     static void *fn, *fs; if (!fn) fn = CA->find_function(CA, c, "MoveToActor"); if (!fs) fs = CA->find_function(CA, c, "GetMoveStatus");
@@ -180,8 +179,8 @@ static void tr_run_frame(void *p, float d) {                                    
         if (!g_trs.lock_set && still_s >= 40.0) { tr_abort("the bot has not moved for 40 s on its run-in (stuck AI)"); return; } }
     if (nav && !g_trs.nav_stall && d < 900.f && tr_now() - g_trs.t_prog >= 2.0) { g_trs.nav_stall = 1; logf_("bottrial: %s: approach RUN (navmesh) stalled at %.0f uu for 2 s (path status %d) - lock-move takes over from 900 uu", g_trs.id, d, ms); }
     if (!nav) {   // detour (only without a navmesh): the straight path-less run can hit furniture (e.g. a custom arena where start A -> start B is blocked). Like a player walking around:
-        // when the bot itself has not moved 60 uu for 1.5 s, it runs 2 s to a point 450 uu to one side (and 150 uu ahead), then chases again; sides alternate, every
-        // third detour goes 700 uu back-and-aside. Movement only (MoveToLocation, no pathfinding) - never a teleport.
+        // when the bot itself has not moved 60 uu for 1.5 s, it runs to an untried player start (4 s) as a waypoint, or, every third detour / with none usable,
+        // 2 s to a point 450 uu aside and 150 uu ahead (sides alternate), then chases again. Movement only (MoveToLocation, no pathfinding) - never a teleport.
         float bl[3]; double now = tr_now();
         if (g_trs.detour_active && now >= g_trs.detour_until) { g_trs.detour_active = 0; ms = 0; }   // the detour's MoveToLocation is still "moving": issue the chase again now
         if (now < g_trs.detour_until && CA->test_get_location(CA, g_trs.bot, bl) && (bl[0] - g_trs.detour_to[0]) * (bl[0] - g_trs.detour_to[0]) + (bl[1] - g_trs.detour_to[1]) * (bl[1] - g_trs.detour_to[1]) < 120.f * 120.f) {
@@ -221,7 +220,7 @@ static void tr_run_frame(void *p, float d) {                                    
         logf_("bottrial: %s: approach RUN FAILED: bot at %.0f %.0f %.0f, player at %.0f %.0f %.0f, controller field %p, AI controller used %p, bot %p", g_trs.id, bl[0], bl[1], bl[2], pl[0], pl[1], pl[2], cp2 ? *cp2 : NULL, c, g_trs.bot); }
 }
 // hit bookkeeping (stagger check): every impact on the bot during a fight is logged with the bot's attack state; 0.3 s later the attack is either gone (INTERRUPTED: the
-// hit staggered it) or still the same one (HIT THROUGH: resilience / steady hand kept it going). The live resilience (DefenseComponent m_iResilience) is logged once per round.
+// hit staggered it) or still the same one (HIT THROUGH: resilience / steady hand kept it going). The live resilience (DefenseComponent m_iResilience) is logged with each check.
 static void tr_on_hit(const AbsHitInfo *h, void *u) {
     (void)u; if (!g_trs.on || g_trs.phase != TP_FIGHT || !h || h->victim != g_trs.bot || !tk_ptr_ok(g_trs.bot)) return;
     AbsCharInfo bi; int att = tr_char(g_trs.bot, &bi) ? bi.attacking : -1;

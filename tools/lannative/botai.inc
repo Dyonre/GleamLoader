@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // botai.inc - the scripted bot's ADAPTER (the game side of botcore.h).
 // Default OFF: nothing happens without `bot_ai = on` in the loader's config.txt. The decisions are pure (botcore.h + bot_cmd.h + botobs.h);
 // this file only (1) reads the observation, (2) executes commands through the game's OWN orders, (3) logs.
@@ -11,7 +10,7 @@
 //   attack   DelayedActionAttack + UAttackComponent::PrepareToLaunchAttack (= UAttackBTTask::LaunchAttack). Deck path (row ""): the row comes from the bot's own deck
 //            via UComboManager::GetNextAttack(input, wanted quadrant) like a player's press; forced path (row id): m_bForceDebugPlay. Flags: perfect link (gold) only if
 //            IsAvailable(Attack1Perfect) and UAttackComponent::CanPerfectLink(row); feint = m_bAttackCancel (the attack is cancelled at its m_iFrameCancel, the AI's feint).
-//   gold     press emulation (bot_cmd.h bc_gold_resolve): 0.08 s buffer before the window, plain link after it; the press offset vs the window opening is logged.
+//   gold     press emulation (bot_cmd.h bc_gold_resolve); the press offset vs the window opening is logged.
 //   guard    AFightingCharacter::HandleGuard         dodge  AFightingCharacter::PlayDodgeOrder
 //   ability  DelayedAction + AFightingCharacter::HandleSpecialAbilityDetection (= UParryBTTask::LaunchSpecial: parry / avoid / absorb; Drunken abilities are attack rows: bai_drunken)
 //   stance   UFightingMovementComponent::LaunchChangeQuadrant(start None, end q) (= UQuadrantChangeBTTask), UpdateChangeQuadrant every tick
@@ -33,19 +32,18 @@ typedef struct {
     int gold_prev; double gold_open_t; BotCmd hold; int holding; double hold_press;  // gold window edge, held press
     int move_on; double move_until; int move_dir; double pw_ready[2];   /* pw_ready: power cooldown end (the game never charges an NPC's power: the adapter does) */
     int wins, ko_lock; double hp_seen;
-    double hit_chk; int gd_want, walk_slow, rush; double tog_t, fwd_t; /* guard pressed while not available (hit / guard-break stun): applied when the game allows it, like a held key */ int pending_ab, pending_gd, pending_dg, pending_pw; double stance_t; int stance_want;
+    double hit_chk; int gd_want, walk_slow, rush; double tog_t, fwd_t; /* gd_want: guard held while unavailable (stun), applied when allowed */ int pending_ab, pending_gd, pending_dg, pending_pw; double stance_t; int stance_want;
     int pair; long refused; double bt_check, tgt_check, tgt_log, def_t, dodge_t, ab_t; int ab_whiff_done; int bt_restarts; long ticks, ticks_range, attacks, hits_landed; char last_tech[8]; int feint_state; unsigned feint_base; int last_gold_cmd; float last_offset_f; double pend_t;
     BaiWin win[BAI_ROWS]; int nwin;
-    int ch_e, ch_i, ch_q, lk_ab_ok; unsigned cx_seq, gd_seq, pr_seq; int feint_next, pr_n, cx_open; unsigned cx_land; double cx_end; /* cx_*: the feint that landed (post-feint rules) */ /* gd_seq: the attack whose gold link was dismissed (avoided / dodged); pr_seq / pr_n: presses during one attack (anti-spam) */ /* cx_seq: attack already cancelled; feint_next: the latch (a press too late feints the next attack) */ double ch_until, lk_ab_t; float nn_pp[2][2]; double nn_pt;   // nn_pp / nn_pt: last poses (me, op) for the 2D speeds   // own chain position (fallback continues the chain) + style-ability re-press lock
+    int ch_e, ch_i, ch_q, lk_ab_ok; unsigned cx_seq, gd_seq, pr_seq; int feint_next, pr_n, cx_open; unsigned cx_land; double cx_end; double ch_until, lk_ab_t; float nn_pp[2][2]; double nn_pt;   // ch_*: own chain position (fallback continues it); lk_ab_*: ability re-press lock; cx_*: the landed feint (post-feint rules); cx_seq: attack already cancelled; gd_seq: attack whose gold link was dismissed; pr_seq / pr_n: presses per attack (anti-spam); feint_next: a late press feints the next attack; nn_pp / nn_pt: last poses (me, op) for the 2D speeds
     double nn_t, nn_buf_t; BotSide nn_hist[16]; float nn_ghist[16][6]; int nn_hi, nn_delay, nn_round, nn_buf; long nn_tick, nn_last_press, nn_acts[NNA_N];   // the neural-network bot (policy nn)
-    // weapons layer: a preset with brain.weapon = sword + deck_sword draws / sheathes the sword by policy (bai_weapon_policy)
     int ally; double ally_t; void *ally_op;   // brain.ally = true: fights the nearest enemy near the player, never the player
-    int want_sword, sword_in_hand, sdeck_n[4], bdeck_n[4]; char sdeck[4][BOT_DECK_MAX][16], salt[4][16], bdeck[4][BOT_DECK_MAX][16], balt[4][16]; int done, frozen, idle_fix, last_type; char last_ctech[8]; double idle_chk, frozen_until, last_cmd_t, stall_log, wp_t, wp_log, t_draw, t_sheathed, t_toggle; int draws, sheathes; float opp_guard_ema, dur_draw, ophp_draw;
+    int want_sword, sword_in_hand, sdeck_n[4], bdeck_n[4]; char sdeck[4][BOT_DECK_MAX][16], salt[4][16], bdeck[4][BOT_DECK_MAX][16], balt[4][16]; int done, frozen, idle_fix, last_type; char last_ctech[8]; double idle_chk, frozen_until, last_cmd_t, stall_log, wp_t, wp_log, t_draw, t_sheathed, t_toggle; int draws, sheathes; float opp_guard_ema, dur_draw, ophp_draw;   // weapons layer: a preset with brain.weapon = sword + deck_sword draws / sheathes the sword by policy (bai_weapon_policy)
 } BaiBot;
 typedef struct { void *ch; unsigned seq; char row[24]; double t; } BaiAtk;
 static const AbsApi *BAI;
 static int g_bai_on, g_bai_verbose = 1, g_bai_match_rounds, g_bai_round, g_bai_draws, g_bai_hooked; static double g_bai_round_t, g_bai_last_report, g_bai_round_max = 60;
-typedef struct { int round, draws, wins[2], mw[2], sp_ok; double round_t; void *a, *b; float sp[2][3], sr[2]; } BaiPair;   /* sp: the pair's spawn spots (match start), sr: health share at the round start (heal-on-kill curve) */   /* mw: round wins inside the running first-to-N match (shards carry over inside it) */   // one match per pair (bots mode: pair = adoption order / 2)
+typedef struct { int round, draws, wins[2], mw[2], sp_ok; double round_t; void *a, *b; float sp[2][3], sr[2]; } BaiPair;   // one match per pair (bots mode: pair = adoption order / 2); mw: round wins in the running first-to-N match (shards carry over inside it); sp: spawn spots at match start; sr: health share at round start (heal-on-kill curve)
 static BaiPair g_bai_pairs[BAI_MAX / 2]; static int g_bai_adopt_n;
 #define BAI_ATK_N (BAI_MAX + 8)                                                            // one slot per bot (+ spare): a bot without a slot has its attacks unrecorded, so nobody defends against them
 static BaiBot g_bai[BAI_MAX]; static BaiPreset g_bai_pre[BAI_PRESETS]; static int g_bai_npre; static BaiAtk g_bai_atk[BAI_ATK_N];
@@ -222,7 +220,6 @@ static void bai_weapon_policy(BaiBot *b, double now) {
         logf_("bot: %s: %s -> LaunchDrawSheatheOrder %d (durability %.2f, shards %.1f, distance %.0f uu)", b->id, why, r, dur, sh, b->o.dist); }
 }
 static int bai_set_target(void *ch, void *t) { int ok = 0; __try { void *f = api_p_find_function(BAI, ch, "SetTarget"); void *args[1] = { &t }; ok = f && api_p_call_params(BAI, ch, f, args, NULL); } __except (EXCEPTION_EXECUTE_HANDLER) { ok = 0; } return ok; }
-// returns 1 launched; *perf_out = the perfect flag actually used; row_out = the row
 // guard only when available (IsAvailable action 2); otherwise held (gd_want) and applied when the game allows it
 static int bai_guard(BaiBot *b, int on) { if (!on) { b->gd_want = 0; return api_p_test_guard(BAI, b->ch, 0); } if (bai_avail(b->ch, 2)) { b->gd_want = 0; return api_p_test_guard(BAI, b->ch, 1); } b->gd_want = 1; return 0; }
 // a deck row launched from stance q: its natural start, or mirrored into q when q is the left / right mirror of that start (FL<->FR, BR<->BL: the deck
@@ -247,6 +244,7 @@ static int bai_cancel(BaiBot *b) {
 static long g_gold_no_spam, g_gold_no_dism, g_gold_try;   // gold-link gate counters (logged at the match end)
 static void bai_press(BaiBot *b) { if (b->o.me.s.v[BO_ATTACKING] > 0) { if (b->pr_seq != b->o.me.seq) { b->pr_seq = b->o.me.seq; b->pr_n = 0; } b->pr_n++; } }   // one real attack press during an own attack (anti-spam count; buffered retries are not presses)
 static int bai_is_rushing(BaiBot *b, float *spent);
+// returns 1 launched; *perf_out = the perfect flag actually used; row_out = the row
 static int bai_attack(BaiBot *b, const BotCmd *c, int want_perfect, int *perf_out, char *row_out) {
     void *ch = b->ch; *perf_out = 0; row_out[0] = 0; int ok = 0;
     if (b->ally && b->op) { void *pl = cd_local_pawn(); float m[3], p[3], o[3];   // ally friendly fire: no swing while the player is close and in front (a sweep at the enemy would hit the player in between)
@@ -275,8 +273,7 @@ static int bai_attack(BaiBot *b, const BotCmd *c, int want_perfect, int *perf_ou
                 BotRow r2; int q2 = b->ch_q >= 0 && b->ch_q <= 3 ? b->ch_q : quad;   // the stance the previous row ends in (the game may still report its start stance during the gold window)
                 if (bai_row(b->cfg.deck[b->ch_e][b->ch_i + 1], &r2) && bai_row_quad(&r2, q2) >= 0) { wchar_t w2[40]; u8_to_w(r2.name, w2, 40); FNameRaw f2 = fname_of(w2); name = *(uint64_t *)&f2; force = 1; quad = q2; } }
             if (!name) {   // no next node from the combo manager: restart from the deck's root row of this stance (forced), like a player's fresh press
-                // pass 0: the root of THIS stance's chain (chain index = engine stance); pass 1: any root that can start here; pass 2: any row (natural start)
-                for (int pass = 0; pass < 1 && !name; pass++)   /* only pass 0 runs (= a player's fresh press: this stance's root); passes 1 / 2 would start any deck row from any stance */ for (int e = 0; e < 4 && !name; e++) for (int i2 = 0; i2 < b->cfg.deck_n[e] && !name; i2++) { BotRow r2; if (!bai_row(b->cfg.deck[e][i2], &r2)) continue;
+                for (int pass = 0; pass < 1 && !name; pass++)   /* only pass 0 runs: this stance's root, like a player's fresh press (passes 1 / 2, any root / any row, are disabled) */ for (int e = 0; e < 4 && !name; e++) for (int i2 = 0; i2 < b->cfg.deck_n[e] && !name; i2++) { BotRow r2; if (!bai_row(b->cfg.deck[e][i2], &r2)) continue;
                     if (pass == 0 && !(i2 == 0 && e == quad && bai_row_quad(&r2, quad) >= 0)) continue;
                     if (pass == 1 && !(i2 == 0 && bai_row_quad(&r2, quad) >= 0)) continue;
                     wchar_t w2[40]; u8_to_w(r2.name, w2, 40); FNameRaw f2 = fname_of(w2); name = *(uint64_t *)&f2; force = 1; if (pass == 2) quad = tk_quadrant_pick(r2.start_q, quad); }
@@ -344,15 +341,13 @@ static int bai_ability(BaiBot *b, int var) {
           if (lk > 0 && !b->lk_ab_ok && bai_now() - b->lk_ab_t < lk / 30.0) return 0; }   //  parry F22, avoid F19, absorb F20), earlier only after a successful one
         if (!bai_avail(b->ch, act)) { if (g_bai_verbose > 1) logf_("bot: %s: ability (action %d) not available now", b->id, act); return 0; }
         if (b->cfg.ability_kind == BA_DRUNKEN) return bai_drunken(b, var);                                      // Stagger / Faejin: the ability is an attack row
-        // the ability's type (parry side / avoid kind): UDefenseComponent::GetAdaptedSpecial(attacker's attack component, its row) like UAIFightingComponent::EvaluateSpecialDefenseTactic
-        // (a fixed param 0 = a fixed parry side). No attack seen -> 0.
         int8_t ty = 0; BaiAtk *k = bai_atk_of(b->op, 0); void *oac = b->op ? se_comp(BAI, b->op, "m_AttackComponent") : NULL; uint8_t *orow = k && k->row[0] ? api_p_table_row(BAI, CT_ATTACKS, k->row) : NULL;
         // the direction is the BOT's choice like a player's stick (var 0..3), never GetAdaptedSpecial (= always right)
         // parry: EQuadrantTypes, Left = FL / BL, Right = FR / BR by the bot's front / back stance; avoid: EAvoidType Duck 0, Jump 1, LeftSide 2, RightSide 3; absorb 0
         (void)oac; (void)orow;
         if (var == 0 && b->cfg.policy != BP_NN && bo_attacking(&b->o.op) && b->o.op.r.ok) {   // the scripted brain picks the stick like a player, from the strike it SEES (perceived row)
             if (b->cfg.ability_kind == BA_PARRY) var = b->o.op.r.origin == 1 ? 1 : 0;   // right origin -> Right parry, else Left
-            else if (b->cfg.ability_kind == BA_AVOID) var = b->o.op.r.motion == 1 ? 0 : 2;   // ponytail: horizontal -> Duck, thrust / vertical -> Side (no hit height here: low sweeps are misread; add m_eHitTarget1 to BotRow)
+            else if (b->cfg.ability_kind == BA_AVOID) var = b->o.op.r.motion == 1 ? 0 : 2;   // horizontal -> Duck, thrust / vertical -> Side (BotRow has no hit height: low sweeps are misread; needs m_eHitTarget1)
         }
         { int bk = bo_stance(&b->o.me) >= 2; if (b->cfg.ability_kind == BA_PARRY) ty = (int8_t)(var == 1 ? (bk ? 2 : 1) : (bk ? 3 : 0)); else if (b->cfg.ability_kind == BA_AVOID) ty = (int8_t)(var >= 0 && var <= 3 ? var : 0); else ty = 0; }
         uint8_t *prm = api_p_prop_ptr(BAI, dc, "m_uiCurrentSpecialAbilityEnumParam"); if (!prm) prm = (uint8_t *)dc + 0x1B9;   /* not a UPROPERTY: PDB offset */ if (prm) *prm = (uint8_t)(ty >= 0 ? ty : 0);
@@ -366,7 +361,7 @@ static int bai_ability(BaiBot *b, int var) {
 static int bai_power(BaiBot *b, int slot, double now) {
     if (!bai_avail(b->ch, slot ? 44 : 45)) { if (g_bai_verbose > 1) logf_("bot: %s: power slot %d not available now", b->id, slot); return 0; }
     // an NPC's LaunchItemUseOrder is never charged by the game (shards and cooldown are spent on the player's inventory path only), so the adapter
-    // charges the item's cost (brain knob power_cost<slot>) and enforces its cooldown (power_cd<slot>, default 1.5 s) itself
+    // charges the item's cost (brain knob power_cost<slot>) and enforces its cooldown (1.4 s + power_cd<slot>, default 1.5 s) itself
     float cost = b->cfg.power_cost[slot & 1], sh = b->o.me.s.v[BO_SHARDS];
     if (now < b->pw_ready[slot & 1]) { if (g_bai_verbose > 1) logf_("bot: %s: power slot %d on cooldown (%.2f s left)", b->id, slot, b->pw_ready[slot & 1] - now); return 0; }
     if (cost > 0 && sh >= 0 && sh + 1e-3f < cost) { if (g_bai_verbose > 1) logf_("bot: %s: power slot %d refused: %.2f shards, costs %.0f", b->id, slot, sh, cost); return 0; }
@@ -475,7 +470,7 @@ static void bai_nn_mask(BaiBot *b, double now, unsigned char *m) {
     for (int d = 0; d < 4; d++) m[NNA_DODGE_BACK + d] = m[NNA_DODGE_FL + d] = (unsigned char)dodge;
     { uint8_t *mc = (uint8_t *)bai_movecomp(b->ch); float cd = 0; __try { if (mc) cd = *(float *)(mc + 0xB20); } __except (EXCEPTION_EXECUTE_HANDLER) { }
       m[NNA_WALK_SLOW] = (unsigned char)(now - b->tog_t >= 0.33);   /* toggle cooldown 10 F */
-      m[NNA_RUSH] = (unsigned char)(now - b->tog_t >= 0.33) && (unsigned char)(b->rush || (b->st.unlocked && cd <= 0.f && b->o.me.s.v[BO_GUARD] > 0.f)); }   /* rush || (!locked && rush_cd == 0 && st > 0) */
+      m[NNA_RUSH] = (unsigned char)(now - b->tog_t >= 0.33) && (unsigned char)(b->rush || (b->st.unlocked && cd <= 0.f && b->o.me.s.v[BO_GUARD] > 0.f)); }
     for (int q = 0; q < 4; q++) m[NNA_STANCE_FL + q] = q != st && (!atk || me->intr_open);
     m[NNA_ABILITY] = m[NNA_ABILITY_V1] = m[NNA_ABILITY_V2] = m[NNA_ABILITY_V3] = (unsigned char)me->ability_ok;
     for (int i = 0; i < 2; i++) m[NNA_POWER0 + i] = b->cfg.power_kind[i] && now >= b->pw_ready[i] && me->s.v[BO_SHARDS] + 1e-3f >= b->cfg.power_cost[i];
@@ -531,7 +526,7 @@ static void bai_face(BaiBot *b, double now) {
     static void *fn; if (!fn) fn = api_p_find_function(BAI, b->ch, "K2_SetActorRotation"); if (!fn) { static int nl3; if (nl3++ < 3) logf_("bot: K2_SetActorRotation not found - bots do not turn when locked"); return; }
     float rot[3] = { 0.f, (myaw + err) * 57.2957795f, 0.f }; uint8_t tp = 0, ret = 0; void *args[2] = { rot, &tp }; __try { api_p_call_params(BAI, b->ch, fn, args, &ret); } __except (EXCEPTION_EXECUTE_HANDLER) { }
 }
-// NnExtra.geo: sin / cos (my facing - bearing to it), sin / cos (its facing - bearing to me), closing / 300, lateral (+ = to my left) / 300, my speed / 400, edge 0
+// NnExtra.geo layout: botnn.h; edge = 0 (unknown)
 static void bai_nn_geo(BaiBot *b, double now, float *g) {
     float mx, my, myaw, ox, oy, oyaw; memset(g, 0, 10 * sizeof *g); if (!bai_pose(b->ch, &mx, &my, &myaw) || !bai_pose(b->op, &ox, &oy, &oyaw)) return;
     { int qm = bo_stance(&b->o.me), qo = bo_stance(&b->o.op); if (qm == 2 || qm == 3) myaw += 3.14159265f; if (qo == 2 || qo == 3) oyaw += 3.14159265f; }   // a back stance faces AWAY from the target; the observation's facing = the fighting direction
@@ -755,7 +750,7 @@ static int bai_pair_for(BaiBot *self) {
     for (int k = 0; k < BAI_MAX / 2; k++) if (cnt[k] == 0) return k;
     return 0;
 }
-// ally mode: the opponent is the nearest living enemy character within 1500 uu (3D) of the PLAYER (not the player, not another ally brain, not the practice dummy);
+// ally mode: the opponent is the nearest living enemy character within 1000 uu (3D) of the PLAYER (kept while within 1500 uu) (not the player, not another ally brain, not the practice dummy);
 // none = no opponent (the bot waits). Rescanned every 0.5 s over UWorld::PawnList (a few dozen pawns),
 // never for_each_object (a full object scan is a 430-560 ms frame).
 static int bai_is_ally_bot(void *ch);
@@ -804,7 +799,7 @@ static void bai_adopt(void *ch, const char *mod, const char *id) {
 }
 static void bai_spawned(void *ch, const char *mod, const char *id) { if (g_bai_on && api_p_is_game_thread(BAI)) bai_adopt(ch, mod, id); }
 
-// ----- match (bot vs bot / bot vs player): a round is lost when the health falls under 25 %; both are healed and the next round starts
+// ----- match (bot vs bot / bot vs player): a round is lost below 25 % health
 static void bai_report(const char *why) {
     logf_("bot: gold gate (%s): tried %ld, refused after a 2nd press %ld, refused after an avoid / dodge %ld", why, g_gold_try, g_gold_no_spam, g_gold_no_dism);
     for (int i = 0; i < BAI_MAX; i++) { BaiBot *b = &g_bai[i]; if (!b->used) continue; char t[300] = ""; for (int k = 0; k < BT_N; k++) { char x[32]; snprintf(x, sizeof x, "%s %d/%d ", BT_IDS[k], b->st.oks[k], b->st.tries[k]); strcat(t, x); }
@@ -850,13 +845,13 @@ static void bai_match(double now) {
     if (now < g_bai_round_t) return;
     float hx = bo_hp_frac(&x->o.me), hy = bo_hp_frac(&y->o.me); int end = hx < 0.25f || hy < 0.25f || now - g_bai_round_t > g_bai_round_max;
     if (!end) return;
-    BaiBot *w = hx < 0.25f && hy >= 0.25f ? y : hy < 0.25f && hx >= 0.25f ? x : NULL;   /* time-out = draw (no round timer in the game) */
+    BaiBot *w = hx < 0.25f && hy >= 0.25f ? y : hy < 0.25f && hx >= 0.25f ? x : NULL;
     g_bai_round++; if (w) w->wins++; else g_bai_draws++;
     logf_("bot: match round %d winner %s (%s hp %.2f, %s hp %.2f, %.1f s)%s", g_bai_round, w ? w->id : "draw", x->id, hx, y->id, hy, now - g_bai_round_t, now - g_bai_round_t > g_bai_round_max ? " timeout" : "");
     int wi = w == x ? 0 : w == y ? 1 : -1; if (wi >= 0) nmw[wi]++; int fresh = wi < 0 || g_bai_match_to <= 0 || nmw[0] >= g_bai_match_to || nmw[1] >= g_bai_match_to;
     if (fresh) { if (wi >= 0) nmw[0] = nmw[1] = 0; nsr[0] = nsr[1] = 1.f;
         api_p_test_heal(BAI, x->ch); api_p_test_heal(BAI, y->ch); bai_freeze(x, now, 1.0); if (y != &stock) bai_freeze(y, now, 1.0); if (y != &stock) bai_face_off(x, y); g_bai_round_t = now + 1.0; if (wi >= 0 && g_bai_start_shards >= 0) bai_set_shards(x->ch, (float)g_bai_start_shards);
-    } else {                                                                                  // 1v1 round flow (see bai_respawn_far): only the loser respawns, the winner keeps its health + the heal-on-kill
+    } else {                                                                                  // 1v1 round flow (see bai_respawn_far)
         BaiBot *lb = wi == 0 ? y : x; float add = 150.f * bai_heal_coef(nsr[wi] - nsr[1 - wi]), mh = w->o.me.s.v[BO_MAXHEALTH] > 0 ? w->o.me.s.v[BO_MAXHEALTH] : 1.f;
         bai_add_health(w->ch, add); api_p_test_heal(BAI, lb->ch); if (lb != &stock) bai_freeze(lb, now, 1.0); bai_respawn_far(lb->ch, w->ch, nsp, nsp_ok); g_bai_round_t = now + 0.5;   /* + 0.5: no round-end check on the cached (pre-heal) health */
         float wf = bo_hp_frac(&w->o.me) + add / mh; nsr[wi] = wf > 1.f ? 1.f : wf; nsr[1 - wi] = 1.f; logf_("bot: round flow: %s keeps its health + %.0f heal-on-kill, %s respawns fresh", w->id, add, lb->id);
@@ -892,8 +887,8 @@ static void bai_tick(float dt, void *u) {
             BaiBot *b = &g_bai[i]; if (!b->used) continue; n++;
             if (!tk_ptr_ok(b->ch)) { b->used = 0; continue; }
             if (b->frozen) { if (now < b->frozen_until) continue; b->frozen = 0; if (!b->done) api_p_test_set_invincible(BAI, b->ch, 0); }   // settle over: fight on
-            if (b->done) continue;
-            if (g_trs.on && g_trs.bot == b->ch && (g_trs.ai_paused || g_trs.phase != TP_FIGHT)) { b->move_on = 0; continue; }   // no actions before the countdown ends / between rounds (the trial pauses the stock AI only)                                                                  // match over: healed, invincible, idle until the runner removes it (no post-match fight)
+            if (b->done) continue;   // match over: healed, invincible, idle until the runner removes it (no post-match fight)
+            if (g_trs.on && g_trs.bot == b->ch && (g_trs.ai_paused || g_trs.phase != TP_FIGHT)) { b->move_on = 0; continue; }   // no actions before the countdown ends / between rounds (the trial pauses the stock AI only)
             BaiBot *other = NULL; for (int j = 0; j < BAI_MAX; j++) if (j != i && g_bai[j].used && !g_bai[j].ally && !b->ally && (!g_bai_mode_bots || g_bai[j].pair == b->pair)) other = &g_bai[j];   // bots mode: only its own pair
             // opponent: mode "bots" never targets the player (no opponent = wait, e.g. between two spawns or removals, or before the baseline NPC is found);
             // default mode: the player only, even when other bots exist (dev-menu spawns). A new opponent clears the queued commands.
@@ -906,7 +901,7 @@ static void bai_tick(float dt, void *u) {
                 void **aic = (void **)api_p_prop_ptr(BAI, b->ch, "m_AIComponent");                       // AIFightingComponent.m_uiIdleIndex (calm idle variant) vs m_uiAlertedIdle (the combat idle): with the behaviour tree stopped nothing keeps the alerted one
                 if (aic && tk_ptr_ok(*aic)) { uint8_t *ix = (uint8_t *)api_p_prop_ptr(BAI, *aic, "m_uiIdleIndex"), *al = (uint8_t *)api_p_prop_ptr(BAI, *aic, "m_uiAlertedIdle"); uint8_t *ao = (uint8_t *)api_p_prop_ptr(BAI, *aic, "m_bAlertedOnce");
                     if (ix && al && *al != 255 && *ix != *al) { b->idle_fix++; if (b->idle_fix <= 12 || b->idle_fix % 50 == 0) logf_("bot: %s: IDLE INDEX %d != alerted idle %d (alerted-once %d, fsm %s, attacking %.0f) -> set to the alerted idle (#%d)", b->id, *ix, *al, ao ? *ao : -1, BS_NAMES[b->st.fsm], b->o.me.s.v[BO_ATTACKING], b->idle_fix); *ix = *al; } } }
-            if (op && !b->st.unlocked && now - b->tgt_check > 0.25) {   /* the brain's unlocked guard is not re-locked here */ b->tgt_check = now; void *cur = bai_target_of(b->ch);                // re-assert the lock every second (stock NPC baseline: every 0.25 s)
+            if (op && !b->st.unlocked && now - b->tgt_check > 0.25) {   /* the brain's unlocked guard is not re-locked here */ b->tgt_check = now; void *cur = bai_target_of(b->ch);                // re-assert the lock every 0.25 s (like the stock NPC baseline)
                 if (cur != op) { int st = bai_set_target(b->ch, op); logf_("bot: %s target was %s - re-set to its opponent -> %d", b->id, cur == cd_local_pawn() ? "the player" : cur ? "another pawn" : "none", st); }
                 if (b->ally && !bai_of(op) && bai_dist(b->ch, op) < 600.f) {                                    // ally mode: the engaged stock enemy fights the ally back (re-asserted every 0.25 s like the baseline NPC below)
                     void *nt = bai_target_of(op); if (nt != b->ch) { int ft = BAI->npc_set_target ? BAI->npc_set_target(BAI, op, b->ch) : -1, lt = bai_set_target(op, b->ch);
@@ -926,7 +921,7 @@ static void bai_tick(float dt, void *u) {
                 if (b->bt_restarts <= 5) logf_("bot: %s: the stock behaviour tree was running again (restart %d, opponent %s) - stopped -> %d, hittable -> %d", b->id, b->bt_restarts, b->op ? "set" : "NONE", s0, h0); } }
             if (!b->op) continue;
             bai_weapon_policy(b, now);
-            if (g_bai_hp_trace) { static int probed; if (!probed && BAI->dump_object) { probed = 1;                                // regen debug dump: every property of the health component, the character and its AI component -> <loader folder>\objdump_*.txt
+            if (g_bai_hp_trace) { static int probed; if (!probed && BAI->dump_object) { probed = 1;                                // debug dump (bot_ai_hp_trace): health, movement, animation graph, character and AI components -> <loader folder>\objdump_*.txt
                 void *hc = se_comp(BAI, b->ch, "m_HealthComponent"), **aic = (void **)api_p_prop_ptr(BAI, b->ch, "m_AIComponent");
                 { void *mcd = bai_movecomp(b->ch); logf_("bot: idle hunt %s: dump_object movement component %d", b->id, mcd ? BAI->dump_object(BAI, mcd) : -1); }
                 { void **ag = (void **)api_p_prop_ptr(BAI, b->ch, "m_AnimationGraph"); logf_("bot: idle hunt %s: dump_object animation graph %d", b->id, ag && tk_ptr_ok(*ag) ? BAI->dump_object(BAI, *ag) : -1); }
@@ -985,7 +980,6 @@ static void bai_tick(float dt, void *u) {
                 BotRow r; bai_row(b->row, &r); double fr = (now - b->atk_t) * 30.0; int pass = r.ok && fr < r.strike + 2;
                 logf_("bot: proof feint %s: own attack %s ended at frame %.0f (strike frame %d, cancel frame %d) (%s)", b->id, b->row, fr, r.strike, r.cancel, pass ? "PASS" : "FAIL: it ran past its strike");
                 if (pass) bot_note(&b->st, BT_U2, 1); b->feint_state = 0; }
-            // a situational PANIC reaction to a mistimed ability while under pressure, probably a back dodge
             if (0 && b->cfg.whiff_cancel && b->pending_ab   /* the brain decides the whiff cancel now (kx wc_rate / wc_delay_s) */ && !b->ab_whiff_done && b->ab_t > 0 && now - b->ab_t > 0.35 && (b->cfg.ability_kind == BA_AVOID || b->cfg.ability_kind == BA_ABSORB) && bo_attacking(&b->o.op)) {
                 b->ab_whiff_done = 1; int av = bai_avail(b->ch, 5), ok = av ? bai_dodge(b, 0) : 0; if (ok) b->dodge_t = now;
                 logf_("bot: tech WC %s whiff-cancel: ability %.2f s ago, no defence event -> dodge available %d, launched %d", b->id, now - b->ab_t, av, ok); }

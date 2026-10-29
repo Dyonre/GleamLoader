@@ -18,13 +18,13 @@ typedef struct {
     char name[24]; int ok;
     int startup;        // m_iFrameBuildUpToPlay (played startup; falls back to m_iFrameBuildUp)
     int cancel;         // m_iFrameCancel (< 0 = cannot be feinted)
-    int strike;         // m_iFrameStrike1 (first active frame) - the hit lands around here
+    int strike;         // hit frame, absolute (= startup; m_iFrameStrike1 counts from the end of the build-up, see bai_row)
     int perfect;        // m_iFramePerfectRelease (gold window opens)
-    int release;        // m_iFrameRelease
+    int release;        // end of the move, absolute: startup + max(m_iFrameRelease, m_iFrameInterruptibleRelease) (fallback +15)
     int irelease;       // m_iFrameInterruptibleRelease
     int start_q, end_q; // m_eStartQuadrant / m_eEndQuadrant (0 FL 1 FR 2 BR 3 BL)
     int motion;         // m_eMovementType1 (EAttackMovementType: 0 Thrust 1 Horizontal 2 Vertical - as the table stores it)
-    int origin;         // m_eOrigin1 (EAttackOrigin: 0 Left 1 Right ...)
+    int origin;         // 0 left 1 right 2 middle (remapped from EAttackOrigin Left 0 Middle 1 Right 2, see bai_row)
     float range;        // m_fRange (uu)
     int adv_hit, adv_guard;   // m_iAdvFrameOnPLHit / m_iAdvFrameOnPLGuard
 } BotRow;

@@ -36,7 +36,7 @@ static int btr_score_text(const BtrMatch *m, const char *bot_name, char *out, in
 }
 /* the stock AAdversarialPlayerState::m_Scores text for `kills` points (TArray<FPlayerKill>: victim player state + count). BPF_GetTeamScore sums m_uiNbKills over the
  * team's player states (AAdversarialGameState::BPF_GetTeamScore -> EnumerateTeamPlayers lambda), so ONE entry with the count is enough.
- * kills 0 = "()". The loader also writes the count straight into element 0, because ImportText can leave it at 0. */
+ * kills 0 = "()" (tr_write_score also writes the count directly). */
 static int btr_scores_text(int kills, char *out, int cap) {
     if (kills <= 0) return snprintf(out, cap, "()");
     return snprintf(out, cap, "((m_uiNbKills=%d))", kills);
@@ -58,8 +58,8 @@ static int btr_pick_start(const float (*loc)[3], const int *first, int n, const 
         }
     return best;
 }
-/* approach of a bot on a map without a navmesh (no MoveTo): 0 = nothing (dead, attacking, already within `stop` or out of reach), 1 = RUN: far away, a straight
- * path-less move to the player (AIController.MoveToActor, bUsePathfinding false), 2 = LOCK-MOVE: within lock_range, the bot locks onto the player (SetTarget) and closes in
+/* approach mode: 0 = nothing (dead, attacking, already within `stop` or out of reach), 1 = RUN: beyond lock_range, a move to the player
+ * (AIController.MoveToActor), 2 = LOCK-MOVE: within lock_range, the bot locks onto the player (SetTarget) and closes in
  * with movement input until `stop` (95 uu: the attack range; from much farther away a bot never attacks) */
 enum { BTR_AP_NONE = 0, BTR_AP_RUN = 1, BTR_AP_LOCK = 2 };
 static int btr_approach(float d, int attacking, int dead, float lock_range, float stop) {

@@ -9,7 +9,7 @@
 #include "learn.h"
 static LearnSet g_learn; static uint64_t g_learn_fn[LEARN_MAX]; static const RowOp *g_learn_src; static int g_learn_src_n = -1;
 static volatile LONG g_learn_hits; static uint8_t (*g_o_learnstate)(void *, const uint64_t *);
-static void learn_refresh(void) {                                   // the set follows g_rowops (boot load, F4 hot reload replaces the array)
+static void learn_refresh(void) {                                   // the set follows g_rowops (boot load; a hot reload replaces the array)
     if (g_learn_src == g_rowops.a && g_learn_src_n == g_rowops.count) return;
     learn_collect(&g_rowops, &g_learn);
     for (int k = 0; k < g_learn.n; k++) { wchar_t w[ROWS_NAME_MAX]; widen(g_learn.name[k], w, ROWS_NAME_MAX); FNameRaw f = fname_of(w); memcpy(&g_learn_fn[k], &f, 8); }

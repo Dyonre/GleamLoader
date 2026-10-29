@@ -228,7 +228,7 @@ struct AbsApi {
 
     /* ---- v2.7: mod UI and hot reload */
     int   (*add_menu_item)(const AbsApi *self, const char *label, void (*cb)(void *user), void *user);   /* an entry on the F1 menu's "Mods" page (labelled "<your mod>: <label>"); cb runs on the game thread when the player selects it; 0 = ok, 1 = table full / bad arguments */
-    int   (*reload_content)(const AbsApi *self);                                              /* hot reload: re-read Mods/<mod>/content (items, styles, plugin kinds) and rows.json and apply what changed without a restart (what cannot be reloaded is logged); returns the number of changed or new content entries, or -1 if nothing could be reloaded. Game thread. Same as F4, a LanNative/reload.txt file, and the first line of the F2 Mods page */
+    int   (*reload_content)(const AbsApi *self);                                              /* hot reload: re-read Mods/<mod>/content (items, styles, plugin kinds) and rows.json and apply what changed without a restart (what cannot be reloaded is logged); returns the number of changed or new content entries, or -1 if nothing could be reloaded. Game thread. Same as a LanNative/reload.txt file and the first line of the F2 Mods page */
 
     /* ---- v2.8: test functions: dodge, AI, hittable, facing */
     int   (*test_dodge)(const AbsApi *self, void *character, const float dir[3]);             /* the character starts a dodge towards the WORLD direction dir (x, y; z ignored; for example away from the opponent) through AFightingCharacter::PlayDodgeOrder; a dodge that is active when an attack connects ends in on_hit outcome ABS_HIT_DODGED. 1 = launched */

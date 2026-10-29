@@ -601,7 +601,7 @@ static void rowedit_install(void) {
     if (!g_orig_postload) logf_("rows: UObject::ConditionalPostLoad hook NOT installed - data asset edits will not be applied");
 }
 
-// ----- hot reload of rows.json (F4 / LanNative\reload.txt / Mods page / AbsApi::reload_content): re-reads every loaded mod's rows.json and re-applies the edits that are new or changed to the tables that are
+// ----- hot reload of rows.json (LanNative\reload.txt / Mods page / AbsApi::reload_content): re-reads every loaded mod's rows.json and re-applies the edits that are new or changed to the tables that are
 // already in memory (the same engine as at load: row_set_q / row_add_q, so every value is validated again). Not reloadable (logged): edits that were REMOVED stay in effect until a restart (the old values are
 // not kept), data asset edits (append / insert are not idempotent, and a data asset is edited once when it loads), and a rows.json that fails to parse (the old edits stay).
 typedef struct { uint64_t names[64]; void *found[64]; FNameRaw fn[64]; int n; } RowLive;

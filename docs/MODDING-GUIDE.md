@@ -556,7 +556,7 @@ Checklist:
 ## 13. Reference
 
 * F11 `rowprops` / `rowdump` (section 3) - every property of a row, with its current value.
-* Examples (`examples\`): `FastJab`, `HeavyJab` (table edits), `GuardTweak` (data asset edits: one `append`, one `insert`), `ContentMods\` (content kinds: `ExampleMask`, `WideWave`, `MapScriptDemo` and more; see `examples\ContentMods\README.md`). Plugin examples: `HelloPlugin`, `PluginTemplate` (`docs/PLUGIN-API.md`).
+* Examples (`examples\`): `FastJab`, `HeavyJab` (table edits), `GuardTweak` (data asset edits: one `append`, one `insert`), `PlusCompat` (a rows.json mod that sits on top of a pak mod), `ContentMods\` (content kinds: `ExampleMask`, `WideWave`, `MapScriptDemo` and more; see `examples\ContentMods\README.md`). Plugin examples: `HelloPlugin`, `PluginTemplate` (`docs/PLUGIN-API.md`).
 * Python tools (`tools\`): `objdiff.py` (object-edit ops from two `objdump` files), `pakls.py` (list a pak's files).
 * Offline checkers in `tools\lannative\test\`, built by `build_tools.bat` (read-only, they never touch the game; they use the same code as the loader):
   * `reccheck.exe <Mods folder> [--dump] [--alone]` - validates every mod's `rows.json` and content in load order and reports errors and conflicts. Property names and value types are checked only in the game (`rows.txt`).

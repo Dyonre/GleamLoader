@@ -303,7 +303,7 @@ static int bai_attack(BaiBot *b, const BotCmd *c, int want_perfect, int *perf_ou
         uint8_t *us = api_p_prop_ptr(BAI, ac, "m_bPerfectLinkUsesShards"); uint8_t consume = us ? *us : 0;
         uint8_t tf[0x60], daa[TK_DAA_SIZE + 0x20]; memset(tf, 0, sizeof tf); memset(daa, 0, sizeof daa);
         ((void *(*)(void *, uint8_t, void *, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint64_t, uint8_t, uint8_t))(g_base + g_tkf[TKF_DAACTOR].rva))(daa, 0, tf, (uint8_t)input, (uint8_t)quad, (uint8_t)perfect, (uint8_t)(c->feint && !nofeint ? 1 : 0), consume, name, 0, 5);
-        if (daa[0x70] != (uint8_t)input || daa[0x71] != (uint8_t)quad || daa[0x74] != (uint8_t)perfect || daa[0x75] != (uint8_t)(c->feint ? 1 : 0) || daa[0x81] != 5) { logf_("bot: %s: DelayedActionAttack layout differs - not launched", b->id); return 0; }
+        if (daa[0x70] != (uint8_t)input || daa[0x71] != (uint8_t)quad || daa[0x74] != (uint8_t)perfect || daa[0x75] != (uint8_t)(c->feint && !nofeint ? 1 : 0) || daa[0x81] != 5) { logf_("bot: %s: DelayedActionAttack layout differs - not launched", b->id); return 0; }
         daa[TK_DAA_FORCE] = (uint8_t)force;
         if (force) daa[0x82] = 1;   // m_bIsSpecialAttack: with force the game never mirrors; with this byte it mirrors when quadrant (+0x71) = the opposite of the row's start (PrepareToLaunchAttack 0x140308FC0)
         ((void (*)(void *, void *))(g_base + g_tkf[TKF_PREPARE].rva))(ac, daa);

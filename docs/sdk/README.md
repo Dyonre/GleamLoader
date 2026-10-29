@@ -100,7 +100,7 @@ Name new rows with your mod prefix; prefer `append` to `set`/`insert` on shared 
 
 ## 4. A plugin from zero to running
 
-1. `New-Plugin.ps1 -Name MyPlugin -Build` (needs MSVC Build Tools 2022 x64; `build.bat` calls `vcvars64.bat` from `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools`). Output `work\sdk-out\MyPlugin\plugin.dll`.
+1. `New-Plugin.ps1 -Name MyPlugin -Build` (the header `AbsolverSE.h` comes from `-Sdk <folder>`, else the `GLEAM_SDK` environment variable, else `tools\lannative` of a repository clone; the `sdk` folder of the release zip works as that folder, so no clone is needed; needs MSVC Build Tools 2022 x64; `build.bat` calls `vcvars64.bat` from `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools`). Output `work\sdk-out\MyPlugin\plugin.dll`.
 2. Copy `plugin.dll`, `mod.json`, `plugin.cfg` to `<game>\Mods\MyPlugin\`. Start the game (offline, `-NoEAC` through the launcher). The loader appends `#MyPlugin` to `Mods\plugins.txt` and refuses to load it (a plugin is arbitrary code).
 3. Remove the `#`, start again. Look in `Absolver\Binaries\Win64\LanNative\lannative.log` for `plugin MyPlugin: ...`.
 

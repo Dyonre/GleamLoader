@@ -1,22 +1,23 @@
 <#
 New-Plugin.ps1 - scaffold an AbsolverSE (script extender) plugin folder: plugin.c (logging, config, ready/tick/hit/menu skeleton),
-build.bat (MSVC Build Tools 2022 x64, header taken from this repo's tools\lannative), plugin.cfg, mod.json.
+build.bat (MSVC Build Tools 2022 x64), plugin.cfg, mod.json. The header AbsolverSE.h comes from -Sdk, else the GLEAM_SDK environment variable, else this repo's tools\lannative.
 
-  powershell -ExecutionPolicy Bypass -File tools\sdk\New-Plugin.ps1 -Name MyPlugin [-Dest <local path>] [-Build]
+  powershell -ExecutionPolicy Bypass -File tools\sdk\New-Plugin.ps1 -Name MyPlugin [-Dest <local path>] [-Sdk <folder with AbsolverSE.h>] [-Build]
 
   -Name   mod folder name = mod id (letters, digits, _ - .; max 95)
+  -Sdk    folder that holds AbsolverSE.h (default: the GLEAM_SDK environment variable, else <repo>\tools\lannative). The 'sdk' folder of the release zip works too.
   -Dest   parent folder (default <repo>\work\sdk-out). The plugin is created in <Dest>\<Name>. Never inside the game folder.
   -Build  run build.bat afterwards and check that plugin.dll exists
   -Force  overwrite an existing folder's generated files
 Never deploys anything: copy plugin.dll + mod.json + plugin.cfg to <game>\Mods\<Name>\ yourself (docs\sdk\README.md section 4).
 #>
-param([Parameter(Mandatory)][string]$Name, [string]$Dest, [switch]$Build, [switch]$Force)
+param([Parameter(Mandatory)][string]$Name, [string]$Dest, [string]$Sdk, [switch]$Build, [switch]$Force)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$hdrDir = Join-Path $repo 'tools\lannative'
+$hdrDir = if ($Sdk) { $Sdk } elseif ($env:GLEAM_SDK) { $env:GLEAM_SDK } else { Join-Path $repo 'tools\lannative' }
 if ($Name -notmatch '^[A-Za-z0-9_.\-]{1,95}$') { throw "bad -Name '$Name': letters, digits, _ - . only, max 95" }
 if (-not $Dest) { $Dest = Join-Path $repo 'work\sdk-out' }
-if (-not (Test-Path -LiteralPath (Join-Path $hdrDir 'AbsolverSE.h'))) { throw "AbsolverSE.h not found in $hdrDir" }
+if (-not (Test-Path -LiteralPath (Join-Path $hdrDir 'AbsolverSE.h'))) { throw "AbsolverSE.h not found in $hdrDir. Pass -Sdk <folder with AbsolverSE.h> or set GLEAM_SDK." }
 $dir = Join-Path $Dest $Name
 if ((Test-Path -LiteralPath (Join-Path $dir 'plugin.c')) -and -not $Force) { throw "$dir\plugin.c exists (use -Force to overwrite)" }
 New-Item -ItemType Directory -Force $dir | Out-Null

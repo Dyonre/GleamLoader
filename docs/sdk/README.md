@@ -11,7 +11,7 @@ Offline / private play only (game 1.31, UE 4.18.3). The loader does nothing with
 | add items, weapons, mask clones, shop entries | content kind `items` (no code) | `New-ContentMod.ps1 -Kind items` |
 | add a fighting style button | content kind `styles` (no code) | `New-ContentMod.ps1 -Kind styles` |
 | new files (animations, meshes, icons, maps) | a `.pak` cooked for UE 4.18.3, plus rows/content that point to it | MODDING-GUIDE section 4 |
-| gameplay logic without a compiler | a Lua script (needs the LuaHost plugin) | `docs/sdk/LUA.md`, `examples/ContentMods/LuaDemo` |
+| gameplay logic without writing C | a Lua script (needs the LuaHost plugin, which is not in the release zip: you build it once from `tools/luahost`) | `docs/sdk/LUA.md`, `examples/ContentMods/LuaDemo` |
 | new logic, UI, events, automated checks, your own content kind | a plugin DLL (C/C++) | `New-Plugin.ps1` |
 
 Scaffolds (never touch the game folder; default output `work\sdk-out`):

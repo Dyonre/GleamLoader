@@ -1,6 +1,6 @@
 # Lua scripting (LuaHost)
 
-Write gameplay logic in Lua without a compiler. Lua 5.4.9 (MIT, `third_party/lua`), hosted by the plugin `tools/luahost` (build: `tools\luahost\build.bat` -> `out\plugin.dll`).
+Write gameplay logic in Lua without writing C. The script itself needs no compiler, but the LuaHost plugin that runs it is **not** in the release zip: you build it once (MSVC Build Tools 2022, `tools\luahost\build.bat`) or use a build you trust. If you are new, start with `rows.json` or `content` JSON instead. Lua 5.4.9 (MIT, `third_party/lua`), hosted by the plugin `tools/luahost` (build: `tools\luahost\build.bat` -> `out\plugin.dll`).
 Offline / private play, `-NoEAC` only, like the whole extender.
 
 ## Turn it on

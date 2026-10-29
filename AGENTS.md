@@ -5,7 +5,7 @@ You were pointed at this repository. It is **Gleam Loader**, a mod loader and sc
 ## What to do with the user's request
 
 * **"Explain how this works"**: read `README.md`, then `docs/sdk/README.md` sections 1-2 and `tools/lannative/README.md`. Explain in plain language. A mod is a folder in the game's `Mods` folder holding `rows.json` (data edits), `content\<kind>\*.json` (items, styles, powers, NPCs, bots), `.pak` files (new assets), Lua scripts or a `plugin.dll`. The loader (`version.dll`) reads them at game start.
-* **"Make me a mod that does X"**: read `docs/LLM-GUIDE.md`, follow the workflow below, then pick the simplest kind of mod from the table in `docs/sdk/README.md` section 1. Prefer `rows.json` or `content\` JSON over Lua, and Lua over a plugin DLL.
+* **"Make me a mod that does X"**: read `docs/LLM-GUIDE.md`, follow the workflow below, then pick the simplest kind of mod from the table in `docs/sdk/README.md` section 1. Prefer `rows.json` or `content\` JSON. Use Lua only if the user already has the LuaHost plugin (it is not in the release zip and has to be built from `tools/luahost`), and a plugin DLL only as a last resort.
 * The user may be a beginner on a free plan. Be brief, give exact file contents and exact paths, and do not read the whole repository. Open only the file you need.
 
 ## Read order (stop as soon as you can answer)

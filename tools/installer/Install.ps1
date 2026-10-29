@@ -7,7 +7,7 @@
       without EasyAntiCheat. Offline and private LAN play only.
    4. Creates the Mods folder.
 
- It never edits or removes EasyAntiCheat files, never moves your paks, and never touches saves.
+ It never edits or removes EasyAntiCheat files, never moves your paks, and never touches saves. If a step fails, the steps already done are undone.
  Steam's "Verify integrity of game files" restores the original Absolver.exe; run this installer again afterwards.
  A log of every step is written to install.log next to this script.
 
@@ -80,8 +80,11 @@ function Run {
     if ($Uninstall) {
         if ((Test-Path -LiteralPath $exe) -and (Is-OurLauncher $exe)) {
             if (Test-Path -LiteralPath $eacBackup) {
-                Remove-Item -LiteralPath $exe -Force
-                Move-Item -LiteralPath $eacBackup -Destination $exe
+                $tmp = "$exe.restoring"      # copy beside first and check it, so Absolver.exe is never missing
+                Copy-Item -LiteralPath $eacBackup -Destination $tmp -Force
+                if ((Get-Item -LiteralPath $tmp).Length -ne (Get-Item -LiteralPath $eacBackup).Length) { Remove-Item -LiteralPath $tmp -Force; throw 'Could not copy the original Absolver.exe back completely. Nothing was changed.' }
+                Move-Item -LiteralPath $tmp -Destination $exe -Force
+                Remove-Item -LiteralPath $eacBackup -Force
                 Say 'Restored the original Absolver.exe.'
             } else {
                 Say 'Absolver.exe is still the launcher but Absolver.exe.eac is missing. In Steam use Properties > Installed Files > Verify integrity to restore it.'
@@ -101,25 +104,68 @@ function Run {
     if ((Test-Path -LiteralPath $dll) -and -not (Is-OurLoader $dll)) {
         throw "$dll already exists and is not ours (another mod uses that file). Refusing to overwrite it."
     }
-
-    Copy-Item -LiteralPath (Join-Path $here 'version.dll') -Destination $dll -Force
-    Say 'Installed version.dll.'
-    Copy-Item -LiteralPath (Join-Path $here 'AbsolverModLauncher.exe') -Destination $launcherCopy -Force
-    Say 'Installed AbsolverModLauncher.exe.'
-
-    if ((Test-Path -LiteralPath $exe) -and (Is-OurLauncher $exe)) {
-        Copy-Item -LiteralPath (Join-Path $here 'AbsolverModLauncher.exe') -Destination $exe -Force
-        Say 'Play button: already set up (launcher updated).'
-    } else {
-        if (Test-Path -LiteralPath $exe) {
-            $dest = $eacBackup
-            if (Test-Path -LiteralPath $dest) { $dest = Join-Path $root ('Absolver.exe.{0}.bak' -f (Get-Date -Format 'yyyyMMdd-HHmmss')) }   # never overwrite a backup
-            Move-Item -LiteralPath $exe -Destination $dest
-            Say ('Kept the original Absolver.exe as ' + (Split-Path $dest -Leaf) + '.')
-        }
-        Copy-Item -LiteralPath (Join-Path $here 'AbsolverModLauncher.exe') -Destination $exe -Force
-        Say 'Play button: Steam''s Play now starts the modded game. Clear any Absolver launch option you set earlier.'
+    if ((Test-Path -LiteralPath $launcherCopy) -and -not (Is-OurLauncher $launcherCopy)) {
+        throw "$launcherCopy already exists and is not ours. Refusing to overwrite it."
     }
+
+    # Each step records how to undo itself. If a step fails, the steps already done are undone in reverse order, so the game folder
+    # is left as it was and Absolver.exe is never left missing.
+    $srcDll = Join-Path $here 'version.dll'; $srcLauncher = Join-Path $here 'AbsolverModLauncher.exe'
+    $undo = New-Object System.Collections.Generic.Stack[scriptblock]
+    $newExe = "$exe.new"
+    try {
+        # version.dll (an older copy of ours is kept as .prev until the install has finished)
+        if (Test-Path -LiteralPath $dll) {
+            Copy-Item -LiteralPath $dll -Destination "$dll.prev" -Force
+            $undo.Push({ Move-Item -LiteralPath "$dll.prev" -Destination $dll -Force }.GetNewClosure())
+        } else {
+            $undo.Push({ if (Test-Path -LiteralPath $dll) { Remove-Item -LiteralPath $dll -Force } }.GetNewClosure())
+        }
+        Copy-Item -LiteralPath $srcDll -Destination $dll -Force
+        if ((Get-Item -LiteralPath $dll).Length -ne (Get-Item -LiteralPath $srcDll).Length) { throw 'version.dll was not copied completely.' }
+        Say 'Installed version.dll.'
+
+        # AbsolverModLauncher.exe
+        if (Test-Path -LiteralPath $launcherCopy) {
+            Copy-Item -LiteralPath $launcherCopy -Destination "$launcherCopy.prev" -Force
+            $undo.Push({ Move-Item -LiteralPath "$launcherCopy.prev" -Destination $launcherCopy -Force }.GetNewClosure())
+        } else {
+            $undo.Push({ if (Test-Path -LiteralPath $launcherCopy) { Remove-Item -LiteralPath $launcherCopy -Force } }.GetNewClosure())
+        }
+        Copy-Item -LiteralPath $srcLauncher -Destination $launcherCopy -Force
+        if ((Get-Item -LiteralPath $launcherCopy).Length -ne (Get-Item -LiteralPath $srcLauncher).Length) { throw 'AbsolverModLauncher.exe was not copied completely.' }
+        Say 'Installed AbsolverModLauncher.exe.'
+
+        # Absolver.exe: copy the launcher beside it first and check it, then swap. A failed copy changes nothing.
+        $undo.Push({ if (Test-Path -LiteralPath $newExe) { Remove-Item -LiteralPath $newExe -Force } }.GetNewClosure())
+        Copy-Item -LiteralPath $srcLauncher -Destination $newExe -Force
+        if ((Get-Item -LiteralPath $newExe).Length -ne (Get-Item -LiteralPath $srcLauncher).Length) { throw 'The launcher was not copied completely.' }
+        if ((Test-Path -LiteralPath $exe) -and (Is-OurLauncher $exe)) {
+            Move-Item -LiteralPath $newExe -Destination $exe -Force
+            Say 'Play button: already set up (launcher updated).'
+        } else {
+            if (Test-Path -LiteralPath $exe) {
+                $dest = $eacBackup
+                if (Test-Path -LiteralPath $dest) { $dest = Join-Path $root ('Absolver.exe.{0}.bak' -f (Get-Date -Format 'yyyyMMdd-HHmmss')) }   # never overwrite a backup
+                Move-Item -LiteralPath $exe -Destination $dest
+                $undo.Push({ if (-not (Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath $dest)) { Move-Item -LiteralPath $dest -Destination $exe } }.GetNewClosure())
+                Say ('Kept the original Absolver.exe as ' + (Split-Path $dest -Leaf) + '.')
+            }
+            Move-Item -LiteralPath $newExe -Destination $exe
+            $undo.Push({ if ((Test-Path -LiteralPath $exe) -and (Is-OurLauncher $exe)) { Remove-Item -LiteralPath $exe -Force } }.GetNewClosure())
+            Say 'Play button: Steam''s Play now starts the modded game. Clear any Absolver launch option you set earlier.'
+        }
+        if (-not (Is-OurLauncher $exe)) { throw 'Absolver.exe is not the launcher after the swap.' }
+    }
+    catch {
+        $failure = $_.Exception.Message
+        Say "ERROR: $failure"
+        Say 'Undoing the steps already done ...'
+        while ($undo.Count) { try { & ($undo.Pop()) } catch { Say ('  could not undo a step: ' + $_.Exception.Message) } }
+        if (-not (Test-Path -LiteralPath $exe)) { Say 'WARNING: Absolver.exe is missing. In Steam use Properties > Installed Files > Verify integrity of game files to restore it.' }
+        throw "Install failed and was rolled back: $failure"
+    }
+    foreach ($p in "$dll.prev", "$launcherCopy.prev") { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force } }
 
     $mods = Join-Path $root 'Mods'
     if (-not (Test-Path -LiteralPath $mods)) { New-Item -ItemType Directory -Path $mods | Out-Null; Say "Created $mods" } else { Say "Mods folder: $mods" }
@@ -136,5 +182,5 @@ function Run {
 }
 
 try { Run }
-catch { Say ('ERROR: ' + $_.Exception.Message); Say "Nothing else was changed after this point. See $logFile"; if (-not $Quiet) { Read-Host 'Press Enter' }; exit 1 }
+catch { Say ('ERROR: ' + $_.Exception.Message); Say "Details are in $logFile"; if (-not $Quiet) { Read-Host 'Press Enter' }; exit 1 }
 if (-not $Quiet) { Read-Host 'Press Enter' }

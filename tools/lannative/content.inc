@@ -520,6 +520,7 @@ static int styles_apply(const char *mod, const char *id, const char *json, void 
 #include "npcs.inc"                                                  // kind "npcs" and the NPC API (npc_spawn, on_area, ...)
 #include "bots.inc"                                                  // kinds "bots" + "ranks" and the progression API (xp_add, rank_info, trial_reward, ...)
 #include "hitpre.inc"                                                // kind "poise" and on_hit_pre / damage_mod / poise_set (API 2.19)
+#include "overlayapi.inc"                                            // overlay_info / _register / _unregister / _set_mode / _raw_mouse: plugins draw Dear ImGui through the loader's overlay (API 2.21)
 #include "defense_ev.inc"                                            // on_defense (API 2.20): guard / guard break / absorb / parry / deflect / dodge / avoid events
 #include "faejinesc.inc"                                             // Faejin gold-loop brakes (window shrink, stamina escalation; default OFF, config fe_*)
 #include "inputrec.inc"                                              // input_rec: input + state recorder, default off

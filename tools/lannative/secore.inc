@@ -895,6 +895,7 @@ static int api_p_inventory_equip_slot(const AbsApi *self, int index, int slot); 
 static void np_fill_api(AbsApi *a);                                                                       // npcs.inc (included by content.inc)
 static void bt_fill_api(AbsApi *a);                                                                       // bots.inc (included by content.inc)
 static void hp_fill_api(AbsApi *a);                                                                       // hitpre.inc (included by content.inc)
+static void ov_fill_api(AbsApi *a);                                                                       // overlayapi.inc (included by content.inc)
 static void de_fill_api(AbsApi *a);                                                                       // defense_ev.inc (included by content.inc)
 #include "mapscript.inc"
 // ----- wiring
@@ -913,7 +914,7 @@ static void se_fill_api(AbsApi *a) {
     a->on_hit = api_p_on_hit; a->on_attack_start = api_p_on_attack_start; a->on_pawn_spawned = api_p_on_pawn_spawned; a->on_pawn_destroyed = api_p_on_pawn_destroyed; a->on_death = api_p_on_death; a->on_menu = api_p_on_menu; a->char_info = api_p_char_info; a->register_content_kind = api_p_register_content_kind;
     a->inventory_equip_slot = api_p_inventory_equip_slot; a->on_power_used = api_p_on_power_used; a->power_use = api_p_power_use;
     a->combo_slot_ensure = api_p_combo_slot_ensure; a->combo_load = api_p_combo_load; a->combo_current = api_p_combo_current; a->set_combat_style = api_p_set_combat_style; a->on_weapon_changed = api_p_on_weapon_changed; a->on_style_changed = api_p_on_style_changed; a->prop_ptr_path = api_p_prop_ptr_path; a->fname_make = api_p_fname_make; a->fname_text = api_p_fname_text;
-    md_fill_api(a); ms_fill_api(a); np_fill_api(a); bt_fill_api(a); as_fill_api(a); sc_fill_api(a); hp_fill_api(a); de_fill_api(a);
+    md_fill_api(a); ms_fill_api(a); np_fill_api(a); bt_fill_api(a); as_fill_api(a); sc_fill_api(a); hp_fill_api(a); de_fill_api(a); ov_fill_api(a);
 }
 static void se_install(void) {                                    // called once from init(): the ProcessEvent hook is always installed (fast path when nothing is registered)
     g_orig_pe = (PE_t)hook(IDX_PROCESSEVENT, (void *)hk_pe);

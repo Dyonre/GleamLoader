@@ -25,6 +25,7 @@
 #ifndef ABSOLVER_SE_H
 #define ABSOLVER_SE_H
 #include <stdint.h>
+#include <stddef.h>
 
 #define ABS_API_VERSION 2
 
@@ -32,6 +33,7 @@ struct AbsApi;
 typedef struct AbsApi AbsApi;
 struct AbsHitPre;              /* v2.19, defined after AbsApi */
 struct AbsDefenseInfo;         /* v2.20, defined after AbsApi */
+struct AbsOverlayInfo;         /* v2.21, defined after AbsApi */
 
 /* on_hit outcome */
 enum { ABS_HIT = 0, ABS_HIT_GUARDED = 1, ABS_HIT_GUARD_BROKEN = 2, ABS_HIT_ABSORBED = 3, ABS_HIT_PARRIED = 4, ABS_HIT_DODGED = 5, ABS_HIT_NO_EFFECT = 6 };
@@ -317,6 +319,14 @@ struct AbsApi {
     float (*poise_get)(const AbsApi *self, void *character);                                   /* current gauge, -1 = no poise */
     /* ---- v2.20: defence outcome events (defense_ev.inc, docs/PLUGIN-API.md "Defence events"). Game thread. The hooks are installed at the first registration. */
     int   (*on_defense)(const AbsApi *self, void (*cb)(const struct AbsDefenseInfo *d, void *user), void *user);   /* one call per successful defence (guard, guard break, absorb, parry, deflect, dodge, avoid; see AbsDefenseInfo). 0 = ok, 1 = bad arguments / 16 callbacks, 2 = hooks failed */
+    /* ---- v2.21: Dear ImGui overlay (overlay.cpp, docs/PLUGIN-API.md "Overlay"). The overlay is installed at the first overlay_register / overlay_set_mode, not at start-up.
+     *      Threads: overlay_register, overlay_unregister, overlay_set_mode and overlay_raw_mouse may be called from any thread (the game thread, AbsPlugin_Load, a draw callback);
+     *      they take a lock that the render thread holds while it draws, so a slow draw callback delays them. Draw callbacks run on the RENDER thread. */
+    int   (*overlay_info)(const AbsApi *self, struct AbsOverlayInfo *out);                 /* any thread; fills what fits in out->size and sets out->size to the bytes filled. 0 = ok, 1 = bad arguments or the overlay has not started yet, 2 = unavailable (dead; out->state = -1). Bind the context only inside a draw callback */
+    int   (*overlay_register)(const AbsApi *self, void (*draw)(void *user), void *user);   /* draw(user) runs once per overlay frame on the render thread, after the loader's windows, in registration order; 16 callbacks in total across all plugins. 0 = ok, 1 = bad arguments / the same (draw, user) twice / table full, 2 = unavailable */
+    int   (*overlay_unregister)(const AbsApi *self, void (*draw)(void *user), void *user); /* 0 = removed (may still run once in the frame in progress), 1 = not found */
+    int   (*overlay_set_mode)(const AbsApi *self, unsigned flags);                         /* your input needs, ABS_OV_*; 0 = nothing. Modes are per plugin and ORed with the other plugins'; frames run while any mode is set or a loader menu is open. 0 = ok, 1 = bad arguments, 2 = unavailable */
+    int   (*overlay_raw_mouse)(const AbsApi *self, int *dx, int *dy);                      /* any thread: raw mouse movement collected since the last call while a plugin has ABS_OV_RAWMOUSE (the accumulator is shared: use it from one plugin at a time). 0 = ok (zeros when nobody has the mode), 1 = bad arguments / unavailable */
 };
 
 /* on_hit_pre: one call per impact on a character, BEFORE the game resolves it (guard / absorb are not known yet). The scales start from damage_mod (victim *_taken x attacker *_dealt). */
@@ -333,6 +343,34 @@ typedef struct AbsHitPre {
     float stun_scale;          /* x the stun frames of this hit (hit, on guard, perfect link); melee attack rows only */
     float knockback_scale;     /* x the knockback distance (hit and guard) */
 } AbsHitPre;
+
+/* overlay_set_mode flags (v2.21). Gamepad input is never taken: ImGui does not read or navigate with it and it keeps driving the game. */
+enum {
+    ABS_OV_DRAW     = 1,       /* your callbacks run; no input is taken (HUDs, viewport overlays that do their own picking) */
+    ABS_OV_MOUSE    = 2,       /* mouse to ImGui and kept from the game; a virtual cursor is drawn (the game pins the OS cursor) */
+    ABS_OV_KEYS     = 4,       /* keys and characters to ImGui; kept from the game only while ImGui wants them (io.WantCaptureKeyboard / WantTextInput). F1-F12 always reach the game, and so does a key release whose press the game saw; a press kept from the game takes its release with it */
+    ABS_OV_RAWMOUSE = 8        /* raw mouse movement goes to overlay_raw_mouse instead of the game and the virtual cursor (fly cameras, drag gizmos) */
+};
+/* overlay_info (v2.21): the loader's Dear ImGui context. At the top of every draw callback check the layout and bind your own copy of ImGui:
+ *   if (i.imgui_version_num != IMGUI_VERSION_NUM || i.sizeof_imgui_io != sizeof(ImGuiIO) || i.sizeof_imgui_style != sizeof(ImGuiStyle) || i.sizeof_imgui_drawvert != sizeof(ImDrawVert) ||
+ *       i.sizeof_imgui_drawidx != sizeof(ImDrawIdx) || i.sizeof_imgui_wchar != sizeof(ImWchar)) return;      // different build: draw nothing
+ *   ImGui::SetAllocatorFunctions(i.imgui_alloc, i.imgui_free, i.imgui_alloc_user); ImGui::SetCurrentContext((ImGuiContext *)i.imgui_context);
+ * Your ImGui build must also neutralise IM_ASSERT (no-op or RaiseException): the default assert would run outside the loader's recovery. */
+typedef struct AbsOverlayInfo {
+    uint32_t size;             /* in: sizeof(AbsOverlayInfo) of your header; out: the bytes the loader filled. Fields are only appended */
+    int state;                 /* 0 = starting (no frame yet), 1 = ready, -1 = dead (the overlay failed to start or was switched off; it does not come back in this run) */
+    void *imgui_context;       /* ImGuiContext * */
+    const char *imgui_version; /* e.g. "1.91.5" */
+    int imgui_version_num;     /* IMGUI_VERSION_NUM of the loader */
+    void *(*imgui_alloc)(size_t size, void *user);
+    void (*imgui_free)(void *ptr, void *user);
+    void *imgui_alloc_user;
+    int width, height;         /* client size of the game window in pixels */
+    float ui_scale;            /* io.FontGlobalScale the loader sets each frame (height / 1080, at least 1): the default font only, scale your sizes with it */
+    void *d3d_device;          /* ID3D11Device * (NULL until the first frame) */
+    void *d3d_context;         /* ID3D11DeviceContext * (the immediate context) */
+    int sizeof_imgui_io, sizeof_imgui_style, sizeof_imgui_drawvert, sizeof_imgui_drawidx, sizeof_imgui_wchar;   /* layout of the loader's ImGui build */
+} AbsOverlayInfo;
 
 /* on_defense (v2.20). type: */
 enum { ABS_DEF_GUARD = 0, ABS_DEF_GUARD_BREAK = 1, ABS_DEF_ABSORB = 2, ABS_DEF_PARRY = 3, ABS_DEF_DEFLECT = 4, ABS_DEF_DODGE = 5, ABS_DEF_AVOID = 6 };

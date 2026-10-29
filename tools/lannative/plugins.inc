@@ -30,6 +30,9 @@ static void plug_fault(int p, const char *what, unsigned long code) {
     if (p < 0 || p >= g_plugins_n) return;
     g_plugins[p].faults++;
     logf_("plugin %s: EXCEPTION 0x%08lX in %s (fault %d of 3)%s", g_plugins[p].name, code, what, g_plugins[p].faults, g_plugins[p].faults >= 3 ? " - its callbacks are now OFF" : "");
+#ifdef LN_OVERLAY
+    if (g_plugins[p].faults >= 3) ov_release_owner(p);                       // no overlay input or callbacks for a switched-off plugin
+#endif
 }
 // which plugin does this AbsApi belong to? (-1 = not one of ours)
 static int plug_of(const AbsApi *self) {
@@ -277,5 +280,8 @@ static void plugins_postload(void *obj) {
         __try { ((void (*)(void *, void *))g_ps_load[i].cb)(obj, g_ps_load[i].user); } __except (EXCEPTION_EXECUTE_HANDLER) { plug_fault(p, "on_object_loaded", GetExceptionCode()); } }
 }
 static void plugins_unload_all(void) {
+#ifdef LN_OVERLAY
+    for (int i = 0; i < g_plugins_n; i++) ov_release_owner(i);              // the overlay drops every plugin's modes and callbacks before any plugin DLL goes away
+#endif
     for (int i = 0; i < g_plugins_n; i++) if (g_plugins[i].loaded && g_plugins[i].unload) { __try { g_plugins[i].unload(); } __except (EXCEPTION_EXECUTE_HANDLER) { } }
 }

@@ -263,9 +263,19 @@ Since = the header block the field was added in (2.0 = the original v2 set, 2.1 
 |---|---|---|
 | `on_defense` | `int on_defense(const AbsApi *self, void (*cb)(const struct AbsDefenseInfo *d, void *user), void *user)` | one call per successful defence (guard, guard break, absorb, parry, deflect, dodge, avoid; see AbsDefenseInfo). 0 = ok, 1 = bad arguments / 16 callbacks, 2 = hooks failed |
 
+### Since 2.21
+
+| Name | Signature | Description |
+|---|---|---|
+| `overlay_info` | `int overlay_info(const AbsApi *self, struct AbsOverlayInfo *out)` | any thread; fills what fits in out->size and sets out->size to the bytes filled. 0 = ok, 1 = bad arguments or the overlay has not started yet, 2 = unavailable (dead; out->state = -1). Bind the context only inside a draw callback |
+| `overlay_register` | `int overlay_register(const AbsApi *self, void (*draw)(void *user), void *user)` | draw(user) runs once per overlay frame on the render thread, after the loader's windows, in registration order; 16 callbacks in total across all plugins. 0 = ok, 1 = bad arguments / the same (draw, user) twice / table full, 2 = unavailable |
+| `overlay_unregister` | `int overlay_unregister(const AbsApi *self, void (*draw)(void *user), void *user)` | 0 = removed (may still run once in the frame in progress), 1 = not found |
+| `overlay_set_mode` | `int overlay_set_mode(const AbsApi *self, unsigned flags)` | your input needs, ABS_OV_*; 0 = nothing. Modes are per plugin and ORed with the other plugins'; frames run while any mode is set or a loader menu is open. 0 = ok, 1 = bad arguments, 2 = unavailable |
+| `overlay_raw_mouse` | `int overlay_raw_mouse(const AbsApi *self, int *dx, int *dy)` | any thread: raw mouse movement collected since the last call while a plugin has ABS_OV_RAWMOUSE (the accumulator is shared: use it from one plugin at a time). 0 = ok (zeros when nobody has the mode), 1 = bad arguments / unavailable |
+
 ## Structs
 
-`AbsHitPre` (`on_hit_pre`, 2.19) and `AbsDefenseInfo` with the `ABS_DEF_*` types (`on_defense`, 2.20) are documented in the header.
+`AbsHitPre` (`on_hit_pre`, 2.19), `AbsDefenseInfo` with the `ABS_DEF_*` types (`on_defense`, 2.20) and `AbsOverlayInfo` with the `ABS_OV_*` modes (`overlay_*`, 2.21) are documented in the header.
 
 ### `AbsHitInfo`
 

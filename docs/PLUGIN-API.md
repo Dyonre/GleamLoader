@@ -97,6 +97,7 @@ Properties are read and written either as engine text (`get_property_text` / `se
 | 2.18 | `sidecar_get`, `sidecar_set` |
 | 2.19 | `on_hit_pre`, `damage_mod`, `poise_set`, `poise_get` |
 | 2.20 | `on_defense` |
+| 2.21 | overlay: `overlay_info`, `overlay_register`, `overlay_unregister`, `overlay_set_mode`, `overlay_raw_mouse` |
 
 Structs passed to the API (`AbsCharInfo`, `AbsMatchInfo`, `AbsRankInfo`, `AbsTrialReward`, `AbsTrialStatus`) start with a `size` field: set `out->size = sizeof *out` before the call, so older and newer loaders both work. `mod.json` `api` is an integer (2): it cannot ask for a minor version, so check `api->size` in the plugin.
 
@@ -466,6 +467,70 @@ Ordering: the poise gauge is updated after the hit resolution returns. Depending
 
 Timing: `time_in_attack` = real seconds from the attacker's `on_attack_start` of the same row to the defence (-1 when no start was seen, another attack started since, or more than 10 s passed); `frame_in_attack` = the same in 1/30 s combat frames, compare with `startup`. `delay` = the game's own prediction delay argument of parry / dodge / avoid (0 otherwise). The loader logs the first 150 events (`defense: #N ...`), then every 100th.
 `on_hit` still reports parry / dodge as `ABS_HIT_PARRIED` / `ABS_HIT_DODGED`; `on_defense` gives the roles explicitly.
+
+## Overlay (API 2.21; loader code `tools/lannative/overlay.cpp` + `overlayapi.inc`)
+
+The loader draws Dear ImGui (1.91.5, `third_party/imgui`) over the game: its own menus (F1, F2) and any plugin window, through one hook on the swap chain's Present. Plugins register a draw callback instead of hooking Present themselves; two overlays that hook the same call fight over input and over the render target.
+
+Five functions and one struct, appended at the end of `AbsApi` (check `api->size >= offsetof(AbsApi, overlay_raw_mouse) + sizeof(void *)`); `ABS_API_VERSION` stays 2 and older plugins are unaffected. A plugin must work without its window when the overlay is unavailable.
+
+| Function | Threads | Returns |
+|---|---|---|
+| `overlay_register(self, draw, user)` | any (game thread, `AbsPlugin_Load`, a draw callback) | `0` ok; `1` bad arguments, the same `(draw, user)` twice, or the table of 16 callbacks (shared by all plugins) is full; `2` overlay unavailable |
+| `overlay_unregister(self, draw, user)` | any | `0` removed (the callback may still run once in the frame in progress); `1` not found |
+| `overlay_set_mode(self, flags)` | any | `0` ok; `1` bad arguments; `2` unavailable. `flags` = `ABS_OV_*`, `0` = nothing |
+| `overlay_raw_mouse(self, &dx, &dy)` | any | `0` ok (the movement since the last call, cleared; zeros when nobody has the mode); `1` bad arguments or unavailable |
+| `overlay_info(self, &info)` | any | `0` ok; `1` bad arguments or no frame yet (`info.state` = 0); `2` dead (`info.state` = -1) |
+
+The loader takes a lock that the render thread holds while it draws, so these calls wait for a frame in progress: a slow draw callback delays them and the game's message pump. Install: the overlay is hooked at the first `overlay_register` or non-zero `overlay_set_mode`, never at start-up; registering from `on_engine_ready` or later is recommended. Only the first request does the work; later calls and other threads wait for it and see the same result.
+
+**Modes** (`overlay_set_mode`, per plugin, ORed with the other plugins' modes; setting a mode replaces the plugin's previous one):
+
+| Flag | Effect |
+|---|---|
+| `ABS_OV_DRAW` | your callbacks run; no input is taken (HUDs, viewport overlays that do their own picking) |
+| `ABS_OV_MOUSE` | mouse messages go to ImGui and are kept from the game; a virtual cursor is drawn (the game pins the OS cursor, so the real cursor position is ignored). Check `io.WantCaptureMouse` yourself to tell ImGui windows from the world |
+| `ABS_OV_KEYS` | keys and characters go to ImGui; they are kept from the game only while ImGui wants them (`io.WantCaptureKeyboard` or `io.WantTextInput`). F1-F12 (also as `WM_SYSKEYDOWN`) always reach the game, and so does a key release whose press the game saw; a press that was kept from the game takes its release with it |
+| `ABS_OV_RAWMOUSE` | raw mouse movement goes to `overlay_raw_mouse` instead of the game and the virtual cursor (fly cameras, drag gizmos); the accumulator is shared, use it from one plugin at a time |
+
+Frames run while any mode is set or a loader menu is open; a closed overlay costs one flag test per Present. Nothing is taken while the game window is not in the foreground; losing the focus clears ImGui's key and button state. The gamepad is never taken: ImGui does not read it and does not navigate with it (the loader resets the navigation flags every frame), and it keeps driving the game. A plugin that is switched off (3 faults) or unloaded loses its modes and callbacks.
+
+**Draw callbacks** run on the **render thread**, between `NewFrame` and `Render`, after the loader's own windows, in registration order (no priorities). `user` is yours. Allowed: ImGui calls and reading your own data (copy game data in an `on_tick` callback under your own lock, or post work with `run_on_game_thread`). Not allowed: engine objects, `call_function*`, `load_object`, blocking calls. Every callback runs inside an exception guard and ImGui's stacks are put back after it: a `Begin` without `End`, a pushed style or an exception leaves the loader's windows and the plugins after you intact, and the loader logs `overlay: plugin X left N unbalanced ImGui stack entries - recovered`. The 3-fault counter is the plugin-wide one shared with every other callback; at 3 the loader logs `plugin X: EXCEPTION ... (fault 3 of 3) - its callbacks are now OFF` and `overlay: plugin X released (...)`. There is no event: call `overlay_info` (`state`) or check the log. If a frame itself faults three times the overlay is switched off for the run (`state` -1) and the loader's menus fall back to text.
+
+**Binding your ImGui.** The plugin builds its own copy of Dear ImGui of the **same version** (the loader exports no ImGui functions; this struct is the whole contract) and binds it to the loader's context at the top of every callback. Compare the layout first; a mismatch means draw nothing:
+
+```cpp
+static void draw(void *user) {
+    AbsOverlayInfo i; memset(&i, 0, sizeof i); i.size = sizeof i;
+    if (A->overlay_info(A, &i)) return;
+    if (i.imgui_version_num != IMGUI_VERSION_NUM || i.sizeof_imgui_io != (int)sizeof(ImGuiIO) || i.sizeof_imgui_style != (int)sizeof(ImGuiStyle) ||
+        i.sizeof_imgui_drawvert != (int)sizeof(ImDrawVert) || i.sizeof_imgui_drawidx != (int)sizeof(ImDrawIdx) || i.sizeof_imgui_wchar != (int)sizeof(ImWchar)) return;
+    ImGui::SetAllocatorFunctions((ImGuiMemAllocFunc)i.imgui_alloc, (ImGuiMemFreeFunc)i.imgui_free, i.imgui_alloc_user);
+    ImGui::SetCurrentContext((ImGuiContext *)i.imgui_context);
+    ImGui::Begin("My plugin"); /* ... */ ImGui::End();
+}
+```
+
+Build your ImGui with `IM_ASSERT` neutralised (a no-op or `RaiseException`): the default `assert` would run outside the loader's recovery. The context is shared: `io` and style changes are global, so restore what you change; windows are not saved to disk by the loader (`io.IniFilename` is NULL; use `SaveIniSettingsToMemory` / `LoadIniSettingsFromMemory` to keep a layout yourself). Only ImGui's default font exists and its size follows `ui_scale` (`io.FontGlobalScale`); the loader does not create textures or fonts for plugins yet (a font and texture API can be added later without changing these entries). `d3d_device` / `d3d_context` are given for plugins that draw with D3D themselves (the loader restores the render target after its draw; do not keep the pointers across a resize).
+
+**Hello window**, for a plugin that also runs on loaders without the overlay:
+
+```c
+__declspec(dllexport) int AbsPlugin_Load(const AbsApi *api) {
+    if (api->version != ABS_API_VERSION || api->size < sizeof(uint32_t) * 2) return 1;      /* not a loader this plugin can run on */
+    A = api;
+    if (api->size >= offsetof(AbsApi, overlay_raw_mouse) + sizeof(void *)) {
+        if (api->overlay_register(api, draw, NULL) == 0) api->overlay_set_mode(api, ABS_OV_DRAW | ABS_OV_MOUSE);
+    }
+    return 0;                                                                                  /* the rest of the plugin works without a window */
+}
+```
+
+`overlay_unregister` and `overlay_set_mode(self, 0)` undo it. Log lines (`LanNative\lannative.log`): `plugin X: overlay_register -> N`, `overlay: plugin X mode 0xA -> 0xB` (only when the mode changes), `overlay: Present / ResizeBuffers hooked`, `overlay: ImGui 1.91.5 up on window ...`, `overlay: first frame drawing`, `overlay: EXCEPTION in the overlay frame (n of 3)`.
+
+### Loader menus
+
+`menu_style = imgui` (default) or `text` in `LanNative\config.txt` (or `menu_style.txt`) selects how the loader's own F1 / F2 menus are drawn; `text` keeps the plain text menus and does not install the overlay for them. It does not affect plugins: a plugin that registers still installs the overlay. The F1 / F2 key bindings and the keyboard navigation are the same in both styles; the overlay adds mouse clicks. The Mods page shows the load order, each mod with its state and the reason it was skipped, content warnings (including pak shadowing), conflicts, the content registry, plugin faults, the last reload and the reload / plugin menu actions.
 
 ## Functions for automated checks (`test_*`, API 2.6 and 2.8)
 For plugins that check a mod in the running game without a keyboard (for example: spawn an NPC, let it attack, compare the `on_hit` damage with the expected value). A *character* is an `AFightingCharacter`: the player, an NPC, the practice dummy. Everything needs the game thread, is checked against this game build before its first use (a mismatch switches only that call off, logged) and is guarded.

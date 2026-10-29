@@ -19,6 +19,7 @@
 #include <float.h>
 #include <intrin.h>
 #include "version_exports.h"
+#include "gleam_version.h"
 #include "lannative_targets.h"
 #include "lan_logic.h"
 #include "lan_telemetry.h"
@@ -2145,7 +2146,7 @@ static void init(HMODULE self) {
     GetModuleFileNameW(NULL, exe, MAX_PATH);
     g_base = (uint8_t *)GetModuleHandleW(NULL);
     // The installer recognises this dll by the text "Gleam Loader loaded in" (and older builds by "LanNative M"): change both together.
-    logf_("Gleam Loader loaded in %ls (base %p)", wcsrchr(exe, L'\\') ? wcsrchr(exe, L'\\') + 1 : exe, g_base);
+    logf_("Gleam Loader loaded in %ls (version " GLEAM_VERSION ", base %p)", wcsrchr(exe, L'\\') ? wcsrchr(exe, L'\\') + 1 : exe, g_base);
     if (wcsstr(exe, L"Absolver-Win64-Shipping")) { safe_mode_detect(); crashrep_install(); }
     g_self_base = (uint64_t)(uintptr_t)self;
     g_self_size = image_size((const uint8_t *)self);

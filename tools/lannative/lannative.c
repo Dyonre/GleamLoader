@@ -2154,7 +2154,8 @@ static void init(HMODULE self) {
     wchar_t exe[MAX_PATH];
     GetModuleFileNameW(NULL, exe, MAX_PATH);
     g_base = (uint8_t *)GetModuleHandleW(NULL);
-    logf_("LanNative M4.3.1 loaded in %ls (base %p)", wcsrchr(exe, L'\\') ? wcsrchr(exe, L'\\') + 1 : exe, g_base);
+    // The installer recognises this dll by the text "Gleam Loader loaded in" (and older builds by "LanNative M"): change both together.
+    logf_("Gleam Loader loaded in %ls (base %p)", wcsrchr(exe, L'\\') ? wcsrchr(exe, L'\\') + 1 : exe, g_base);
     if (wcsstr(exe, L"Absolver-Win64-Shipping")) { safe_mode_detect(); crashrep_install(); }
     g_self_base = (uint64_t)(uintptr_t)self;
     g_self_size = image_size((const uint8_t *)self);
@@ -2195,7 +2196,7 @@ static void init(HMODULE self) {
     }
     // SetClientTravel: LAN travel log, AND the pvp guard's travel timestamp (a bot trial / solo duel travel arms the guard), so it also stays with the guard on
     if (lan_on || g_pvpfix_on) g_orig_settravel = (SetClientTravel_t)hook(IDX_SETCLIENTTRAVEL, (void *)hk_settravel);
-    if (!g_orig_settravel) logf_("travel logging is unavailable (SetClientTravel hook not installed); F6/F7 still work");
+    if (!g_orig_settravel) logf_("travel logging is unavailable (SetClientTravel hook not installed); the menu's travel items still work");
     logf_("lan: %d of 3 LAN-only hooks installed (joiner fixes, host tracking, body cleanup); SetClientTravel %s (%s)",
           !!g_orig_clientrestart + !!g_orig_serverack + !!g_orig_netcleanup, g_orig_settravel ? "installed" : "not installed",
           lan_on ? "lan on" : g_pvpfix_on ? "lan off; kept for the pvp guard" : "lan off, pvp guard off");
@@ -2224,7 +2225,7 @@ static void init(HMODULE self) {
         g_orig_scorekill = (ScoreKill_t)hook(IDX_SCOREKILL, (void *)hk_scorekill);
         if (!g_orig_scorekill) logf_("pvp score: hook NOT installed - NPC kills will count in duels");
     }
-    logf_("ready (%s%s%s%s%s%s%s): F6 host, F7 join (LanNative\\ip.txt), F3 bring joiners (host), F5 state, F8 log marker, F1 menu; console initializes after the viewport exists",
+    logf_("ready (%s%s%s%s%s%s%s): F1 menu, F2 Mods page; console initializes after the viewport exists",
           g_orig_clientrestart ? "joiner fixes " : "", g_orig_serverack ? "host tracking " : "", g_orig_netcleanup ? "body cleanup " : "",
           g_orig_settravel ? "travel log " : "", g_orig_returnprev ? "pvp guard " : "", g_pvpflow_on ? "pvp flow " : "", g_orig_notifyparry ? "parry log" : "");
 }

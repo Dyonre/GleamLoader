@@ -18,7 +18,7 @@ $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logFile = Join-Path $here 'install.log'
 $launcherMarker = 'Absolver Mod Launcher'      # UTF-16 title string inside our launcher exe
-$loaderMarker = 'LanNative M'                   # ASCII version string inside our version.dll
+$loaderMarkers = 'Gleam Loader loaded in', 'LanNative M'   # ASCII banner texts inside our version.dll (current, then the one of earlier builds)
 
 function Say([string]$m) {
     Write-Host $m
@@ -55,7 +55,7 @@ function Has-Text([string]$path, [string]$text, [Text.Encoding]$encoding) {
     return $false
 }
 function Is-OurLauncher([string]$path) { Has-Text $path $launcherMarker ([Text.Encoding]::Unicode) }
-function Is-OurLoader([string]$path)   { Has-Text $path $loaderMarker ([Text.Encoding]::ASCII) }
+function Is-OurLoader([string]$path)   { foreach ($m in $loaderMarkers) { if (Has-Text $path $m ([Text.Encoding]::ASCII)) { return $true } }; return $false }
 
 function Run {
     Say ('--- {0} ---' -f $(if ($Uninstall) { 'Uninstall' } else { 'Install' }))

@@ -229,7 +229,13 @@ static void mods_mount_all(void *self) {
             for (wchar_t *c = full; *c; c++) if (*c == L'\\') *c = L'/';       // the engine's own pak paths use forward slashes
             unsigned char ih[20] = {0}; PakEntry *entries = NULL; int ne = -1;
             FILE *f = _wfopen(fullbs, L"rb");
-            if (f) { ne = modpak_read(f, &entries, ih); if (ne < 0) { _fseeki64(f, 0, SEEK_END); int64_t sz = _ftelli64(f); memcpy(ih, &sz, 8); } fclose(f); }
+            int fok = f ? modpak_footer_ok(f) : 0;
+            if (fok != 1) {                                  // the engine's mount code is not safe to call on a file that is not a pak
+                const char *why = !f ? "cannot be read" : "bad footer"; if (f) fclose(f);
+                mods_warn("%s/%s is not a valid pak file (%s) - NOT mounted", me->name, paks[k], why);
+                RPT("[FAILED] %s/%s  not a valid pak file (%s)\r\n", me->name, paks[k], why); continue;
+            }
+            { ne = modpak_read(f, &entries, ih); if (ne < 0) { _fseeki64(f, 0, SEEK_END); int64_t sz = _ftelli64(f); memcpy(ih, &sz, 8); } fclose(f); }
             uint32_t order = mod_read_order(position, k);
             // The engine's pak cache opens <pak>.sig for EVERY pak and crashes on a missing one (FPakPrecacher::RegisterPakFile).
             // The game accepts the .sig of any of its own paks for any mod pak, so a missing one is created here, inside the mod's own folder.

@@ -19,6 +19,17 @@ static int modpak_path(const char *mount, const char *entry, char *out, size_t c
     strcpy(out, s); return 1;
 }
 
+// A pak ends with a 44-byte footer (magic 0x5A6F12E1, version, index offset, index size, index SHA-1). Cheap check done before the engine mounts a file.
+// Returns 1 = plausible pak, 0 = too small or no footer magic.
+static int modpak_footer_ok(FILE *f) {
+    unsigned char tail[44]; uint32_t magic;
+    if (_fseeki64(f, 0, SEEK_END)) return 0;
+    int64_t size = _ftelli64(f); if (size < 44) return 0;
+    if (_fseeki64(f, size - 44, SEEK_SET) || fread(tail, 1, 44, f) != 44) return 0;
+    memcpy(&magic, tail, 4); if (magic != 0x5A6F12E1) return 0;
+    return 1;
+}
+
 // Returns the number of entries (>= 0) with *out malloc'd (free it), or -1 for an unsupported/malformed/encrypted index.
 // index_hash (optional) receives the footer's index SHA-1: it changes whenever any file in the pak changes.
 static int modpak_read(FILE *f, PakEntry **out, unsigned char index_hash[20]) {

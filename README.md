@@ -20,6 +20,8 @@ To add a mod, put its folder in `<game folder>\Mods\`. If a mod stops the game f
 
 To uninstall (or to play the official online mode), run `Uninstall.bat`. Steam's "Verify integrity of game files" also undoes the install; run `Install.bat` again afterwards.
 
+Basic mods (`rows.json`, paks, items and other content mods) work right after install. A few features that hook game functions by name, such as plugins that use `hook_symbol` or fighting-style buttons, also need a `symbols.bin` made from your own copy of the game; without it the loader logs that these are off and everything else keeps working (see `docs/PLUGIN-API.md`).
+
 Antivirus software may flag `version.dll` because it is an unsigned DLL that patches the game in memory. See [SECURITY.md](SECURITY.md).
 
 ## Making mods

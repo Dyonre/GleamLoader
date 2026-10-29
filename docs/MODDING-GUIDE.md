@@ -1,6 +1,8 @@
 ﻿# Making a mod for the Absolver mod loader
 
-This guide is for people who want to **make** mods. If you only want to install and run mods, read `README.txt` in the installer folder.
+This guide is for people who want to **make** mods. If you only want to install and run mods, read `README.txt` in the release zip (also `tools/installer/README.txt` in the repository).
+
+Before you start: install Gleam Loader (the release zip). Your mods go in the `Mods` folder next to `Absolver.exe` in the game folder, for example `C:\Program Files (x86)\Steam\steamapps\common\Absolver\Mods\`. The installer creates it.
 
 It applies to Absolver 1.31 (Unreal Engine 4.18.3).
 
@@ -11,6 +13,8 @@ Offline / private LAN play only. The loader refuses to do anything unless the ga
 ## 1. Your first mod in five minutes
 
 Goal: make the basic Jab start 4 frames sooner and hit harder, and add a new move.
+
+In the base game the Jab (row `004`) has `m_iFrameBuildUp` 10 (frames until it hits) and `m_fDamageMax1` 38.2. Other mods can change these values, so the numbers you see in game may differ.
 
 1. Make a folder in the game's `Mods` folder: `Mods\FastJab\`
 2. Put one file in it, `rows.json`:

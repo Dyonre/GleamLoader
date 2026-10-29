@@ -112,7 +112,7 @@ static int modsui_build(const ModsUiIn *in, char (*lines)[MUI_LINE], int max) {
         if (in->plug_loaded[i] && in->plug_faults[i] > 0 && in->plug_faults[i] < 3) snprintf(t + strlen(t), sizeof t - strlen(t), " (%d of 3)", in->plug_faults[i]);
         char h[160]; snprintf(h, sizeof h, "Plugin %s: ", in->plug_name[i]); n = modsui_put(lines, n, max, h, t);
     }
-    n = modsui_put(lines, n, max, "Last reload: ", in->reload_status && in->reload_status[0] ? in->reload_status : "none yet (F4 reloads Mods\\*\\content and rows.json)");
+    n = modsui_put(lines, n, max, "Last reload: ", in->reload_status && in->reload_status[0] ? in->reload_status : "none yet (the Reload line of this page, or a LanNative\\reload.txt file, reloads Mods\\*\\content and rows.json)");
     return n;
 }
 #endif

@@ -93,13 +93,21 @@ static void mods_mount_all(void *self) {
 
     // 1. folders -> ModList (loadorder.txt, synced with what is on disk)
     char *names[MODS_MAX]; int nnames = 0;
+    char longnames[8][64]; int longlen[8], nlong = 0;                       // folders whose name exceeds the limit: skipped, reported once the warning list is reset below
     {
         wchar_t pat[MAX_PATH]; swprintf(pat, MAX_PATH, L"%ls\\*", mods); WIN32_FIND_DATAW fd; HANDLE h = FindFirstFileW(pat, &fd);
         if (h != INVALID_HANDLE_VALUE) {
             do {
                 if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != L'.' && nnames < MODS_MAX) {
-                    char u[MOD_NAME_MAX * 2]; w_to_u8(fd.cFileName, u, sizeof u);
+                    char u[1024]; w_to_u8(fd.cFileName, u, sizeof u);
                     if (u[0] && strlen(u) < MOD_NAME_MAX) names[nnames++] = _strdup(u);
+                    else if (u[0]) {
+                        if (nlong < 8) {
+                            size_t cut = 40; while (cut && ((unsigned char)u[cut] & 0xC0) == 0x80) cut--;      // do not split a UTF-8 sequence
+                            snprintf(longnames[nlong], sizeof longnames[0], "%.*s...", (int)cut, u); longlen[nlong] = (int)strlen(u);
+                        }
+                        nlong++;
+                    }
                 }
             } while (FindNextFileW(h, &fd));
             FindClose(h);
@@ -130,6 +138,8 @@ static void mods_mount_all(void *self) {
     }
     mf_resolve(mfs, men, list.count, ABS_API_VERSION, &mres);
     int has_pak[MODS_MAX] = {0}; g_mi_warn_n = 0;
+    for (int i = 0; i < nlong && i < 8; i++) mods_warn("mod folder '%s' (%d bytes) exceeds the %d-character name limit - skipped", longnames[i], longlen[i], MOD_NAME_MAX - 1);
+    if (nlong > 8) mods_warn("%d more mod folder(s) exceed the %d-character name limit - skipped", nlong - 8, MOD_NAME_MAX - 1);
     for (int m = 0; m < list.count && m < MODS_MAX; m++) if (mres.status[m] == MF_OK && mfs[m].nsup) {          // only a mod that supersedes something needs to know whether it ships a pak
         wchar_t wn[MOD_NAME_MAX * 2], dd[MAX_PATH]; u8_to_w(list.mods[m].name, wn, MOD_NAME_MAX * 2); swprintf(dd, MAX_PATH, L"%ls\\%ls", mods, wn); has_pak[m] = mods_dir_has_pak(dd);
     }
@@ -175,6 +185,8 @@ static void mods_mount_all(void *self) {
     RPT("Absolver mods loaded by LanNative (last in the list wins)\r\n");
     {   char ord[1400] = ""; size_t ow = 0; for (int k = 0; k < mres.norder && ow < sizeof ord; k++) ow += snprintf(ord + ow, sizeof ord - ow, "%s%s", k ? ", " : "", list.mods[mres.order[k]].name);
         RPT("Load order (requires / after applied on top of loadorder.txt): %s\r\n", mres.norder ? ord : "(none)"); }
+    for (int i = 0; i < nlong && i < 8; i++) RPT("[SKIPPED] %s: exceeds the %d-character name limit\r\n", longnames[i], MOD_NAME_MAX - 1);
+    if (nlong > 8) RPT("[SKIPPED] %d more folder(s): name exceeds the %d-character limit\r\n", nlong - 8, MOD_NAME_MAX - 1);
     for (int i = 0; i < list.count; i++) {
         if (mres.status[i] == MF_OFF) { logf_("mods: [off] %s", list.mods[i].name); RPT("[off] %s\r\n", list.mods[i].name); }
         else if (mres.status[i] == MF_SKIPPED) RPT("[SKIPPED] %s: %s\r\n", list.mods[i].name, mres.reason[i]);

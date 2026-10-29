@@ -81,7 +81,10 @@ int main(int argc, char **argv) {
     char pat[1200]; snprintf(pat, sizeof pat, "%s\\*", argv[1]); WIN32_FIND_DATAA fd; HANDLE h = FindFirstFileA(pat, &fd);
     if (h == INVALID_HANDLE_VALUE) { printf("cannot open folder %s\n", argv[1]); return 2; }
     char *names[MODS_MAX]; int nn = 0;
-    do if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != '.' && nn < MODS_MAX) names[nn++] = _strdup(fd.cFileName); while (FindNextFileA(h, &fd));
+    do if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != '.' && nn < MODS_MAX) {
+        if (strlen(fd.cFileName) >= MOD_NAME_MAX) { printf("[SKIPPED] %.40s...: folder name exceeds the %d-character limit\n", fd.cFileName, MOD_NAME_MAX - 1); problems++; }
+        else names[nn++] = _strdup(fd.cFileName);
+    } while (FindNextFileA(h, &fd));
     FindClose(h); qsort(names, nn, sizeof *names, cmp);
     static ModList list; snprintf(pat, sizeof pat, "%s\\loadorder.txt", argv[1]); char *lo = slurp(pat); modlist_parse(&list, lo ? lo : ""); free(lo);
     modlist_sync(&list, (const char **)names, nn);

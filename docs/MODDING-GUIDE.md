@@ -61,7 +61,7 @@ A mod can be only a `rows.json`, only a pak, only `content\` files, or several o
 
 Rules:
 
-* The folder name is the mod's name everywhere (logs, load order, the LAN warning). Use letters, digits, `_`, `-`, `.`; at most 95 characters (a longer folder name is not loaded). Keep the `id` in `mod.json` equal to the folder name. Item and other content ids (section 10b) are stricter: letters, digits and `_` only.
+* The folder name is the mod's name everywhere (logs, load order, the LAN warning). Use letters, digits, `_`, `-`, `.`; at most 95 characters (a longer folder name is skipped with a warning). Keep the `id` in `mod.json` equal to the folder name. Item and other content ids (section 10b) are stricter: letters, digits and `_` only.
 * Paks must sit **directly** in the mod folder (not in a subfolder). If a mod has several paks they are mounted in file-name order, later name wins.
 * You do not need a `.sig` file: the loader creates a missing one next to the pak (a copy of the game's own signature file, which the game accepts for any pak).
 * Up to 256 mods.

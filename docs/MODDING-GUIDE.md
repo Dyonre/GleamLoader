@@ -58,7 +58,7 @@ A mod can be only a `rows.json`, only a pak, only `content\` files, or several o
 
 Rules:
 
-* The folder name is the mod's name everywhere (logs, load order, the LAN warning). Use letters, digits, `_`, `-`, `.`; at most 95 characters.
+* The folder name is the mod's name everywhere (logs, load order, the LAN warning). Use letters, digits, `_`, `-`, `.`; at most 95 characters (a longer folder name is not loaded). Keep the `id` in `mod.json` equal to the folder name. Item and other content ids (section 10b) are stricter: letters, digits and `_` only.
 * Paks must sit **directly** in the mod folder (not in a subfolder). If a mod has several paks they are mounted in file-name order, later name wins.
 * You do not need a `.sig` file: the loader creates a missing one next to the pak (a copy of the game's own signature file, which the game accepts for any pak).
 * Up to 64 mods.
@@ -189,7 +189,7 @@ Two kinds of table edit:
 * `row` / `add` is the row name. Row names are text: ids like `004` or any name you like (`MyKick`).
 * `add` makes a new row as a **copy of `copy_of`** at that moment, then applies `set`. So the new row inherits earlier edits to the source row. If a row with that name already exists (another mod added it) it is kept and your `set` is applied to it.
 * `set` maps property name to value. Values may be JSON strings, numbers or `true`/`false`.
-* An attack row you add should also set `m_Name` to its own row name (the game identifies the move by it: learned state, new-move marks).
+* An attack row you add should also set `m_Name` to its own row name (the game identifies the move by it: learned state, new-move marks). The loader does not check that the two match.
 * `"learn": "always"` on an `add` of an `attacks` row: the move counts as learned for every character, so it shows in the deck editor without editing the save. Nothing is written to the save. Any other value is an error.
 * Use **namespaced row names** (`<ModId>_<move>`, e.g. `MyMod_DoubleStrike`): numeric ids collide across mods (two mods that each add `258` overwrite each other).
 
@@ -401,7 +401,7 @@ The loader reads these keys (all optional; a mod without `mod.json` uses its fol
 | `id` | stable name: letters, digits, `_`, `-`, `.`. Used by `requires` / `after`, in `/Game/Mods/<id>/...` object paths and in logs. Default: the folder name. Two mods with the same id: the later one is skipped |
 | `version` | dotted number (`0.1.0`), compared by `requires.min` |
 | `api` | the lowest mod API version the mod needs (currently 2); a loader with an older API skips the mod and says so |
-| `requires` | `[ { "id": "Lib", "min": "1.0" } ]` (or just `"Lib"`): if that mod is missing, off, skipped or too old, this mod (pak, rows, content and plugin) is skipped and the reason is logged and shown on screen |
+| `requires` | `[ { "id": "Lib", "min": "1.0" } ]` (or just `"Lib"`): if that mod is missing, off, skipped or too old, this mod (pak, rows, content and plugin) is skipped and the reason is logged and shown on screen. Mods that require each other in a cycle are all skipped and listed as such. |
 | `after` | `["Other"]`: load after Other if Other is present (no error if it is not) |
 | `supersedes` | `["zzzOldMoves.pak"]`: pak names of OTHER mods that this mod replaces (it must ship its own pak); they are not mounted. Section 14 |
 | `affects_gameplay` | set to `false` for a mod that only changes how things look (texture and skin packs) |

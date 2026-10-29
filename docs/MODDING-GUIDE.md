@@ -64,7 +64,7 @@ Rules:
 * The folder name is the mod's name everywhere (logs, load order, the LAN warning). Use letters, digits, `_`, `-`, `.`; at most 95 characters (a longer folder name is not loaded). Keep the `id` in `mod.json` equal to the folder name. Item and other content ids (section 10b) are stricter: letters, digits and `_` only.
 * Paks must sit **directly** in the mod folder (not in a subfolder). If a mod has several paks they are mounted in file-name order, later name wins.
 * You do not need a `.sig` file: the loader creates a missing one next to the pak (a copy of the game's own signature file, which the game accepts for any pak).
-* Up to 64 mods.
+* Up to 256 mods.
 
 ### Load order
 
@@ -556,7 +556,7 @@ Checklist:
 * Hard references added to a data asset load the referenced asset: the animation must exist in a mounted pak.
 * Hard object references in **table rows** to assets that are not loaded yet are applied one frame after the table loads (section 5, "Hard object references"), not during the load.
 * A table's edits are matched by the table's short object name (`attacks`); two different tables with the same short name would both match.
-* Per object up to 24 different properties are edited per load, 64 different objects per game session, 64 mods.
+* Per object up to 24 different properties are edited per load, 64 different objects per game session, 256 mods.
 
 ---
 

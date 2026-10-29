@@ -1,0 +1,26 @@
+THIRD-PARTY NOTICES (Gleam)
+===========================
+
+Gleam's own code is under the MIT License (see LICENSE). Third-party code it contains or uses is listed below; each part keeps its own license.
+
+1. Included in this repository
+
+Lua 5.4.9                               MIT          Copyright (C) 1994-2026 Lua.org, PUC-Rio   https://www.lua.org
+  third_party/lua/ (copied unchanged from the official source, see third_party/lua/VERSION.txt); full license text: third_party/lua/LICENSE
+
+2. Used, not included: NuGet packages the .NET tools (src/AbsolverModTool*, tools/*/*.csproj) download at build time
+
+These are not stored in this repository. A binary build that ships them must include their license texts.
+
+CUE4Parse, CUE4Parse-Conversion         Apache-2.0   https://github.com/FabianFG/CUE4Parse
+  pulls in, each under the license published with its package: Blake3 (BSD-2-Clause), BouncyCastle.Cryptography (MIT), Newtonsoft.Json (MIT),
+  Serilog (Apache-2.0), K4os.Compression.LZ4, OffiUtils, Oodle.NET, LZMA-SDK, Zlib-ng.NET, ZstdSharp.Port, Infrablack.UE4Config,
+  AssetRipper.TextureDecoder (MIT), SkiaSharp (MIT), SharpGLTF (MIT)
+UAssetAPI                               MIT          Copyright (c) 2020 - 2026 atenfyr   https://github.com/atenfyr/UAssetAPI
+Newtonsoft.Json                         MIT          Copyright (c) James Newton-King
+xunit, Microsoft.NET.Test.Sdk, coverlet.collector   test projects only (Apache-2.0 / MIT)
+.NET runtime and WPF                    MIT          Copyright (c) .NET Foundation and Contributors   https://github.com/dotnet/runtime
+
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+Absolver is the property of its respective owners. This repository contains no game assets.

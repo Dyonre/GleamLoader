@@ -105,6 +105,7 @@ static int jvalue(JDoc *d, int depth) {
 static int jdoc_parse(JDoc *d, const char *text) {                 // root = node 0; returns 0 on success
     memset(d, 0, sizeof *d); d->p = d->begin = text;
     if ((unsigned char)text[0] == 0xEF && (unsigned char)text[1] == 0xBB && (unsigned char)text[2] == 0xBF) d->p += 3;
+    jskip(d); if (!*d->p) { snprintf(d->err, sizeof d->err, "the file is empty"); return -1; }
     int root = jvalue(d, 0); if (root < 0) { if (!d->err[0]) jfail(d, "out of memory"); return -1; }
     jskip(d); if (*d->p) { jfail(d, "extra text after the end"); return -1; }
     return 0;

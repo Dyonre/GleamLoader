@@ -1,9 +1,7 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // sidecar.inc - the per-character metadata store. Included by secore.inc after combodeck.inc. Pure logic: sidecar.h.
-// File: LanNative\state\<GUID>.txt (GUID = the live save's m_SavedData.m_FightingCharacterGuid, so a rename keeps the state; never in SaveGames).
-// The document of the character in play is cached and written through on every change (temp file + rename). The first time a character's document is
-// opened, the old name-keyed keys of the loader's kv file (LanNative\data\Content.txt: "<name>.staff_deck", ".sword_deck", ".style") are moved into it
-// ("legacy.*") and removed from the kv file. Game thread only (reads the live save). API 2.18: sidecar_get / sidecar_set ("p.<plugin>.<key>").
+// File: LanNative\state\<GUID>.txt (format: sidecar.h; never in SaveGames).
+// The document of the character in play is cached and written through on every change (temp file + rename).
+// On first open the old kv-file keys are migrated to "legacy.*" (sidecar.h). Game thread only (reads the live save). API 2.18: sidecar_get / sidecar_set ("p.<plugin>.<key>").
 #include "sidecar.h"
 static ScDoc g_sc; static char g_sc_id[48]; static int g_sc_have, g_sc_writes;
 

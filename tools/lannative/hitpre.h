@@ -65,8 +65,7 @@ static int hp_poise_after(HpPoise *p, int was_hit, int res_absorbed, float damag
     p->cur = p->max; return HPP_INTERRUPTED;
 }
 
-// ---- per-character table (fixed size, linear scan: a handful of fighters at once)
-// 64 slots, linear scan per impact; a hash if fights ever have dozens of modded characters.
+// ---- per-character table: 64 slots, linear scan per impact (a hash if fights ever have dozens of modded characters)
 #define HP_CHARS 64
 typedef struct { void *ch; float m[HPK_N]; HpPoise poise; int checked; } HpChar;   // checked = the poise content entries were matched against this character once
 typedef struct { HpChar c[HP_CHARS]; int full_logged; } HpTable;

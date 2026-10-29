@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // hitpre.inc - on_hit_pre + damage_mod, poise (API v2.19; included by content.inc after bots.inc: uses npcs.inc's api_p_npc_archetype).
 // Pure maths and the per-character table: hitpre.h. docs\PLUGIN-API.md "Pre-hit, damage_mod and poise".
 //
@@ -10,9 +9,8 @@
 //   AFightingCharacter::GetKnockbackCoefFromEffects (victim)      x knockback scale
 //   AFightingCharacter::GetResilienceBonusFromEffects (victim)    poise: forced resilience (hitpre.h)
 //   UHitComponent::NotifyResilienceImpact                         poise: "the game took the resilience branch" = light absorbed
-// Stun: the row getters cannot be hooked, so the attack row's 16 stun bytes are scaled for the duration of the one call and restored after it.
+// Stun: row bytes scaled for the one call (hitpre.h "stun").
 // Nothing here allocates; with no callback, no damage_mod and no poise the GenerateImpact detour is one test and the call.
-// ---------------------------------------------------------------------------------------------------------------------
 #include "hitpre.h"
 
 static const AbsApi *HP_API;                                      // the loader's own plugin API (hp_init from content_init)

@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // animsets.h - pure logic of the "anim_sets" kind: the path table of every style-indexed animation table, the index allocator,
 // the padding (copy of a base-style block, deep copy of nested TArrays) and the boot validator. No OS / engine calls, so it can be tested offline.
 //
@@ -8,7 +7,7 @@
 //
 // Memory rules:
 //  * grown arrays get a NEW buffer from `alloc` (FMemory::Malloc in game); the old buffer is NEVER freed: FidgetDB caches a pointer into it
-//    (UFidgetDB::m_ShuffleableAnimArray) and readers on other threads may still hold it. ponytail: leaks < 200 KB once per boot; fine.
+//    (UFidgetDB::m_ShuffleableAnimArray) and readers on other threads may still hold it. Leaks < 200 KB once per boot.
 //  * nested TArrays of a copied block (FAnimContainer.m_SpeedPerFrame, FidgetAnimArray) are deep-copied, never aliased.
 //  * publish order data -> max -> num; new indices are used only after as_apply returns, so a reader never sees an index past its buffer.
 #ifndef ANIMSETS_H
@@ -198,7 +197,7 @@ static int as_pad_arr(const AsTable *t, AsArr *a, int need, const int *src, AsAl
             if (!in) continue;
             if (in->num <= 0) { in->data = NULL; in->num = 0; in->max = 0; continue; }
             void *d = alloc((size_t)in->num * esz);
-            if (!d) { snprintf(err, cap, "%s.%s: out of memory (nested)", t->asset, t->prop); return -1; }   // ponytail: partial nested copies leak on this path; boot-time only
+            if (!d) { snprintf(err, cap, "%s.%s: out of memory (nested)", t->asset, t->prop); return -1; }   // partial nested copies leak on this path (boot time only)
             memcpy(d, in->data, (size_t)in->num * esz); in->data = d; in->max = in->num;
         }
     }

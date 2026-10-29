@@ -1,8 +1,8 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // content.inc - content registry of the script extender (included by lannative.c after secore.inc). Guide: docs\MODDING-GUIDE.md section 10b.
 // A mod ships JSON in  Mods\<mod>\content\<kind>\*.json  (no plugin.dll of its own). At boot the mod loader lists the files in load order (content_scan_mod); at engine ready (title screen, before the
 // save is loaded) and again right before a save resolves its items, every entry is validated by its kind's handler, duplicate ids are resolved by load order (later wins) and the winners are applied.
-// Built-in kinds: "items" (runtime copies of stock DataAssets under /Game/Mods/<mod id>/, granted / equipped / sold) and "styles" (extra Meditation > Combat Style buttons). Plugins add kinds with
+// Built-in kinds: "items" (runtime copies of stock DataAssets under /Game/Mods/<mod id>/, granted / equipped / sold), "styles" (extra Meditation > Combat Style buttons) and the others
+// registered in content_init (maps, powers, npcs, bots, ranks, bot_trials, poise, clones, anim_sets, weapons). Plugins add kinds with
 // AbsApi::register_content_kind. The loader's own plugin "Content" (plugins.inc, only present when some mod ships content) owns the built-in handlers. Pure logic (no game calls): contentreg.h, manifest.h.
 typedef struct { int pos; char folder[MOD_NAME_MAX], modid[MOD_NAME_MAX], kind[CR_KIND_MAX], rel[160]; wchar_t path[MAX_PATH]; } CFile;
 static CFile g_cf[256]; static int g_cf_n;
@@ -14,7 +14,7 @@ typedef struct { char kind[CR_KIND_MAX]; int owner; int (*validate)(const char *
 static CKind g_ck[16]; static int g_ck_n;
 typedef struct { CrEntry cr; int kind, valid, applied, shadowed; char *json; char modid[MOD_NAME_MAX], rel[160]; } CEntry;
 static CEntry g_ce[512]; static int g_ce_n; static int g_collected;
-static char g_cconf[24][160]; static int g_cconf_n, g_c_invalid_n, g_c_nfiles, g_c_inuse;   // for the F1 Mods page: conflict lines, invalid entries, files, entries in use
+static char g_cconf[24][160]; static int g_cconf_n, g_c_invalid_n, g_c_nfiles, g_c_inuse;   // for the F2 Mods page: conflict lines, invalid entries, files, entries in use
 
 static int content_file_count(void) { return g_cf_n; }
 static void content_boot_reset(void) { g_cf_n = 0; }
@@ -554,7 +554,7 @@ static void content_init(const AbsApi *a) {
 //   items   name, description, icon / icon_file, props, price, gear_row.set values, grant: re-applied to the live object (a changed icon_file image becomes a NEW texture object);
 //           base, shop, shop_copy_of, gear_row.table / copy_of, moves cannot change (the object / rows exist): logged, entry kept as it was. A NEW item is created like at boot.
 //   styles  name and icon are written into the style DB (shown the next time Meditation opens); db, style_id, index cannot change. A NEW style appears when the Meditation menu is built again.
-//   plugin kinds  `apply` is called again for every changed or new entry (make it idempotent); removed entries are only reported.
+//   other kinds (built-in and plugin)  `apply` is called again for every changed or new entry (make it idempotent); removed entries are only reported.
 // Removed entries and removed properties stay in the game until a restart (the old values are not kept). Returns the number of changed + new entries applied, -1 if the registry is not running.
 static int content_reload(char *status, int cap) {
     if (!CA) { snprintf(status, cap, "content: not running (no mod shipped content when the game started - restart once)"); return -1; }
@@ -576,7 +576,7 @@ static int content_reload(char *status, int cap) {
         CEntry *e = &g_ce[i]; if (!e->valid || e->shadowed) continue;
         CrSnap *c = &now_[nnow < 512 ? nnow : 511]; snprintf(c->kind, sizeof c->kind, "%s", e->cr.kind); snprintf(c->id, sizeof c->id, "%s", e->cr.id); snprintf(c->mod, sizeof c->mod, "%s", e->modid); c->json = e->json; c->applied = 0; if (nnow < 512) nnow++;
         switch (cr_reload_class(old, nold, c)) {
-            case CRR_SAME: e->applied = 1; break;                                                  // unchanged: nothing to do
+            case CRR_SAME: e->applied = 1; break;
             case CRR_CHANGED: changed++; logf_("content: reload: %s '%s' (%s) changed", e->cr.kind, e->cr.id, e->rel); break;
             case CRR_RETRY: retry++; break;                                                       // was waiting for an object / table: tried again now
             default: fresh++; logf_("content: reload: %s '%s' (%s) is new", e->cr.kind, e->cr.id, e->rel); break;

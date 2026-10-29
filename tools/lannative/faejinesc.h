@@ -1,5 +1,5 @@
 // faejinesc.h - pure decision logic of the Faejin gold-LOOP counter shared by the two brakes (loader glue: faejinesc.inc; offline tests: test\faejinesc_test.c, test\faejinws_test.c).
-//. No game access, no allocation, no clock: the caller passes `now` in seconds.
+// No game access, no allocation, no clock: the caller passes `now` in seconds.
 //
 // n counts the gold links that involve a style-ability row (into or out of an ability) of one Faejin character:
 //   - it goes up by one per such link (fe_link), it is NOT cleared by a plain launch in between: "strafe -> gold -> plain attack -> strafe -> gold" is the same loop;

@@ -1,11 +1,10 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // faejinesc.inc - Faejin gold-loop brakes (prototype, both default OFF): (1) gold-link PRESS WINDOW SHRINK (faejinws.h), (2) stamina escalation (faejinesc.h). Included by content.inc after hitpre.inc (uses hp_is_fchar / hp_comp).
 // Pure logic: faejinesc.h.
 //
 // Where the engine charges stamina for an attack.
 //   UConsumStaminaNotify (clip notify) -> UDefenseComponent::AnimNotifyStaminaFired -> StaminaImpact @0x34FF50, Consumption branch for the Attack / Cancel order types:
 //   cost = notify cost * AFightingCharacter::GetActionStaminaCostCoefFromEffects(char, tick) @0x32F5E0 (its ONLY caller), then ApplyActionCostGuardGauge @0x3216D0 (the guard gauge = stamina bar).
-//   The loader hooks GetActionStaminaCostCoefFromEffects (77 bytes, pure: effects table -> float) and multiply its result by fe_mult() for Faejin characters.
+//   The loader hooks GetActionStaminaCostCoefFromEffects (77 bytes, pure: effects table -> float) and multiplies its result by fe_mult() for Faejin characters.
 //   Optional log hook on ApplyActionCostGuardGauge (the FINAL charged amount, every character): config fe_log = on.
 // Chain source: UAttackComponent::m_iPerfectLinkChain (+0x950), written by LaunchAttack (0 on a non-gold launch, 1 on the first gold link, +1 per further link); read at on_attack_start.
 // Safety: both hooks go through hook_symbol (symbols.bin bytes compared with the loaded exe before patching; a mismatch = no hook, logged). BPF_GetCombatStyle is called through its
@@ -16,8 +15,7 @@
 //   APAttackDetection::OnActionJustStackedCallback @0x3679B0 (this, InputAction): the press time of Attack1/2 (0/1), Attack1/2Perfect (19/20), DrunkenAttack/Perfect ('J' 74 / 'K' 75).
 //   UAttackComponent::CanPerfectLink @0x2EEAC0 (this, next row): the decision. A true answer for the LOCAL player with style 5 is vetoed (false = plain link) when
 //        ws_accept() says the press was not inside the schedule's window for the current number of chained gold links (faejinws.h).
-// config.txt keys: fe_escalation = on|off (default off), fe_n0 (2), fe_a (0.35), fe_cap (3), fe_tau (0.8 s), fe_reset (1.5 s), fe_style (5), fe_log = on|off (default off); window shrink: fe_window = on|off (default off), fe_ws_widths = 2,1.5,1,0.5 (frames per consecutive gold link, then none), fe_ws_center = 1 (frames after the window opened).
-// ---------------------------------------------------------------------------------------------------------------------
+// config.txt keys: fe_escalation = on|off (default off), fe_n0 (2), fe_a (0.35), fe_cap (3), fe_tau (0 = off), fe_reset (1.5 s), fe_style (5), fe_log = on|off (default off); window shrink: fe_window = on|off (default off), fe_ws_widths = 2,1.5,1,0.5 (frames per consecutive gold link, then none), fe_ws_center = 1 (frames after the window opened).
 #include "faejinesc.h"
 #include "faejinws.h"
 

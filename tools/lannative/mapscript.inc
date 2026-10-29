@@ -1,11 +1,9 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // mapscript.inc - generic map script of the script extender (included by secore.inc after modes.inc). Guide: docs\MODDING-GUIDE.md "Map script".
 // A mod ships  Mods\<mod>\content\maps\*.json  (content kind "maps", registered by content_init). One entry = one scene for the maps whose world path contains `map`:
 //   lights (point / spot, colour + intensity from key-frame curves, on/off by phase), meshes (movable props / doors with named states, collision switched with the state),
 //   triggers (player in a box -> set a mesh state, a phase, a light, a banner message) and curves. Everything is spawned at runtime with engine classes (APointLight, ASpotLight,
 //   AStaticMeshActor) driven by UFunction name; the one native call is USceneComponent::SetMobility (PDB symbol). Nothing is replicated; every machine runs its own copy.
 // Pure logic (curves, phases, placement, trigger edges, timed moves): mapscript.h. Plugin hooks: AbsApi::mapscript_phase / mapscript_mesh.
-// ---------------------------------------------------------------------------------------------------------------------
 #include "mapscript.h"
 #define MS_LIGHTS 64                // per scene (parse limit); what is spawned is capped by MS_MAX_LIGHTS_TOTAL over all scenes
 #define MS_MESHES 96                // per scene, grid cells included

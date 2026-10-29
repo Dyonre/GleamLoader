@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // weaponslot.inc - "own weapon slot" for a weapon item of the content registry (included by content.inc after the CItem type).
 // The weapon family enum is compiled (BareHands / Sword / WarGloves), so a weapon kind stays in its base family (e.g. Sword) and gets, through these fields:
 //   "deck":  { "first_slot": 5, "count": 4, "label": "Staff", "layout": {...}, "layouts": [null, {...}, ...] }   (decklayout.h dl_parse_range; legacy { "slot": "4" } = one deck)
@@ -20,10 +19,7 @@
 //   A character whose saved fighting style is an item's anim_style gets its previous style back (ws_style_heal).
 //   "moves_exclusive": true       the family check answers for this family: item rows only while the item's deck is the current deck, never otherwise;
 //                                 every other row never while the item's deck is current (family moves stay out of the item deck and the other way round).
-// Save safety: when the save is written (WriteLevelsToSave) while an item deck is current, the save object gets the remembered family deck name; the
-// file is serialised later on a worker thread (FAsyncSaveTask::DoWork, after LaunchSave), and the live name comes back when the game itself sees that task
-// finished (UThePlainesGameInstance::TickSaveLoad: m_SaveTask done -> OnSaveCompleted, task deleted). Deck switches of ours wait for that moment, so a save
-// never names an item deck and works unchanged without the mod.
+// Save safety: a save never names an item deck (mechanism: the "save safety" section above ws_writelevels_det).
 // These fields belong to a weapon KIND (content kind "weapons", weapons.inc); an item gets them with "weapon": "<kind id>" (then its own copies are ignored, logged).
 // On an item without "weapon" they are still read (logged as deprecated). Kind state keys are per ITEM id (kind.<item id>.deck).
 // Remembered values: per character AND per kind in the character's sidecar (kindstate.inc / sidecar.inc); "legacy.*" keys are read as a fallback.

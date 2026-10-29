@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // learn.inc: rows.json adds with "learn": "always" count as learned for every character, without editing the save.
 // Included from content.inc (needs CA for hook_symbol and g_rowops from rowedit.inc); pure part: learn.h.
 // The game's one learned-check: UStatsComponent::BPF_GetAttackLearningState(this, const FName *attack) -> EAttackLearningState

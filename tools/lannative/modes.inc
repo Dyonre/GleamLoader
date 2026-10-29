@@ -1,11 +1,9 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // modes.inc - the "modes" API of the script extender (included by secore.inc). Guide: docs\PLUGIN-API.md "Modes".
 //   travel / console_cmd / solo_duel : start a map or a console command (the loader's pvp duel flow + the solo-duel switch do the rest)
 //   match_info / on_match_state / on_round_end : read the live AAdversarialGameMode / GameState (polled 10x per second, one poll for all plugins)
 //   set_mode_prop : write ruleset properties (m_iNbWinningRounds ...) on the live game mode and game state
 //   show_banner / hud_score : text on the HUD, drawn with UCanvas::DrawText from the PostRender hook (md_draw, called by hk_postrender in lannative.c)
 // Pure logic (banner queue, round detection, travel command): modes.h. All internal calls pass self = NULL (the helpers ignore it).
-// ---------------------------------------------------------------------------------------------------------------------
 #include "modes.h"
 static void *md_world_obj(const char *prop) { void *w = world(); void **p = se_valid_ptr(w) ? (void **)api_p_prop_ptr(NULL, w, prop) : NULL; return p && se_valid_ptr(*p) ? *p : NULL; }
 static void *md_gm(void) { return md_world_obj("AuthorityGameMode"); }

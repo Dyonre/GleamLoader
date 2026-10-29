@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // combodeck.inc - decks, fighting styles, weapon / style events and nested property paths (API "decks and weapon slot"). Included by secore.inc.
 // Facts used here:
 //   live deck list  = GameInstance.m_CurrentSave (SaveThePlaines) .m_SavedData.m_SavedCombos[family].m_Combos   (TArray<FComboSave>, stride 0x138, FName at +0)

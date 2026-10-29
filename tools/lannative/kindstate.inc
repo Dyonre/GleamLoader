@@ -1,8 +1,5 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // kindstate.inc - weapon-kind state per character and per kind. Included by weaponslot.inc. Pure logic + key names: kindstate.h.
-// Runtime: g_ks, one entry per character (NULL = the local player, kept across travel; other characters are dropped on a world change), holding the
-// index of the kind it has equipped / drawn. Persistent: the character's sidecar document (sidecar.inc), "kind.<id>.<what>" and "family.<n>.deck";
-// a value migrated from the name-keyed kv store ("legacy.*", see sidecar.h) is read when the new key is not there yet.
+// Runtime table + persistent keys and their legacy fallbacks: kindstate.h.
 #include "kindstate.h"
 static KsChar g_ks[KS_MAX]; static unsigned g_ks_gen;
 static KsChar *ks_char(void *ch, int create) {

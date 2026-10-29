@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // animsets.inc - kind "anim_sets": an animation set lives at its own index of the 66 style-indexed tables (animsets.h, the pure
 // part: path table, allocator, padding, validator). Included by content.inc after the "styles" kind.
 //   content\anim_sets\*.json: { "anim_sets": [ { "id": "Staff", "index": "auto" | 6, "fallback_style": 0,

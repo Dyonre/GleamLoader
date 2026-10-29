@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // weapons.h - pure logic of the "weapons" content kind. No OS / engine calls, so it can be tested offline.
 // A weapon KIND is a weapon type on one of the three compiled base families (there is no real 4th family). It ties decks, animations and moves together:
 //   Mods\<mod>\content\weapons\<file>.json   { "weapons": [ {

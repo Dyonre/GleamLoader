@@ -1,8 +1,5 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // weapons.inc - content kind "weapons" (schema + pure logic in weapons.h). Included by content.inc after the CItem type, before weaponslot.inc.
-//   * an item names its kind with "weapon": "<id>" (items_parse -> wp_item_merge): the kind's moves are added to the item's, the kind's damage / grip values go
-//     into the item's gear_row "set" (item values win); weaponslot.inc reads deck / anim_set / anim_style / deflect_style / moves_exclusive from the KIND entry.
-//     The item-level fields still work on an item without "weapon" (logged as deprecated).
+//   * items.weapon -> wp_item_merge (called from items_parse; merge rules: weapons.h header)
 //   * UI identity: the kind's own menu widgets (weaponslot.inc) show the kind's label and icon: around their Blueprint events the base family's entry of
 //     MenuDB.m_WeaponFamilyInfos (FText label + selected / normal / mini icon) is byte-swapped with the kind's label and icon texture (wp_view_push / pop);
 //     every other reader sees the vanilla family. A swap of the DATA, not a hook: the readers are native code that cannot be hooked
@@ -82,7 +79,7 @@ static void wp_ui_sync(void) { if (g_wpu.on && !g_wpv_depth) { wp_flip(); logf_(
 // ----- hit sweep densifier (weapons.h wp_densify): UAttackComponent::RetrieveHitResult sweeps one sphere per FHitRequest.m_CastBoundaries entry (+0x50, TArray of
 // start/end vectors). For a LONG weapon (neighbouring sample points more than WP_SWEEP_LONG uu apart: e.g. ~94 for a long pole weapon, ~42 for a sword) the
 // array is replaced for the duration of the call by one with points every WP_SWEEP_GAP uu (our buffer; the engine only reads it), then put back.
-// ponytail: keyed on the point spacing, not on the weapon kind (any weapon longer than a sword gets the denser sweep); a kind field when another long weapon needs other numbers.
+// Keyed on point spacing, not on the kind (anything longer than a sword gets the denser sweep); make it a kind field if another long weapon needs other numbers.
 #define WP_SWEEP_LONG 60.f
 #define WP_SWEEP_GAP 40.f   // few sweeps per cast (each costs frame time); a character capsule is ~35 uu radius, so 40 uu spacing (+5 sphere radius) leaves no gap
 typedef struct { float *data; int num, max; } WpCastArr;
@@ -167,9 +164,7 @@ static void wp_on_hit(const AbsHitInfo *h, void *u) {
 }
 
 // ----- independent weapons. Three switches in the loader config, ON by default, "= 0" turns one off.
-//   wp_slot_follow = 1  effects follow the weapon: AFightingCharacter::GetWeaponSlotAttacking (0x363D00, the mirror-aware strike slot; read by GenerateImpact, OrderHitted,
-//                       GetCurrentHitDamage, durability, GetActiveWeapons) reports the hand that HOLDS the kind weapon when the strike's hand has no actor (weapons.h wp_slot_follow).
-//                       Without it a mirrored strike of a one-hand kind weapon hits but counts as a bare-handed hit: no weapon impact effects / sound / weapon damage.
+//   wp_slot_follow = 1  effects follow the weapon (GetWeaponSlotAttacking 0x363D00; rule: weapons.h wp_slot_follow)
 //   wp_hand_switch = 1  a kind with "hand_switch": "mirror": at each attack start the weapon actor is attached to LeftHandSocket for a MIRRORED attack and to
 //                       RightHandSocket otherwise (K2_AttachToComponent, snap); back to the right hand when the attack ends. The actor keeps its RightHand slot entry; the
 //                       hit request (mirror slot borrow) reads the actor's socket bone, so the sweep follows the hand that holds it.

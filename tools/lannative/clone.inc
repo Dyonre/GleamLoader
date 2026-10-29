@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // Player clones: bot opponents defined in a mod folder. Content kind "clones": Mods\<mod>\content\clones\<id>.json
 //   { "id": "duelist", "name": "Duelist", "brain": "peak_stagger_v", "profile": "clones/duelist.txt", "style": 4, "menu": true }
 // A clone is a SECOND LOCAL PLAYER (UGameplayStatics::CreatePlayer, ids 1..3): a real player character with its own character data, driven by a bot brain
@@ -6,11 +5,11 @@
 //   profile : a file inside the mod folder = a whole m_SavedData as UE text (deck, outfit, body build, name, style). Make one with the F1 entry
 //             "Clones: save my character as a profile" (LanNative\data\clones\<name>.txt), then copy it into the mod. Without a profile the clone is a copy of
 //             your current character. Absolver's encrypted .sav files do not load through LoadGameFromSlot, hence the text profile.
-//   style   : optional fighting style number 0..5 written over the profile's.
+//   style   : optional fighting style number written over the profile's (not range-checked; the stock styles are 0..5).
 // Safety (the clone must never touch player 0's save): GameInstance.m_CurrentSave is swapped for the clone's own copy around CreatePlayer and every
 // AFightingPlayerController::InitCharacterAndSave of a clone controller; SaveGame of any controller but player 0's is skipped; the Steam entitlement pass and the
 // lock-target widget (both need a real local player) are skipped for clones. Every hook checks its prologue bytes (hook_rva); any failure = no clone.
-// F1 (Mods page): "Clones: spawn <name>" per entry with "menu" (default true), "Clones: save my character as a profile", "Clones: remove all".
+// Mods page (F2): "Clones: spawn <name>" per entry with "menu" (default true), "Clones: save my character as a profile", "Clones: remove all".
 // LanNative\config.txt: clone_spawn = <id>[,<id>] spawns those clones 6 s after you are in the world (a sparring partner that is always there).
 #define CL_MAX 3
 typedef struct { char id[48], name[64], brain[64], profile[MAX_PATH * 3], mod[64]; int style, menu; } CloneDef;
@@ -96,7 +95,7 @@ static int cl_spawn(int di) {
     return 1;
 }
 static void cl_shake_install(void); static void cl_lookup_install(void);   // defined below (installed from the tick)
-static char g_cl_auto[160]; static double g_cl_auto_t;   // config clone_spawn = <id>[,<id>]: those clones join 6 s after the player pawn exists
+static char g_cl_auto[160]; static double g_cl_auto_t;   // config clone_spawn (header)
 static void cl_autospawn(void) {
     if (!g_cl_auto[0] || !cd_local_pawn()) { g_cl_auto_t = 0; return; }
     { char wp[300] = ""; void *w = CA->get_world(CA); if (!w || !CA->object_path(CA, w, wp, sizeof wp) || strstr(wp, "/StartMap/")) { g_cl_auto_t = 0; return; } }   // not on the title screen

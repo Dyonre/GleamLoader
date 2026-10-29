@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // animstyle.inc - the weapon animation set (API 2.17: anim_style_set / anim_style / real_style / on_handled_weapon). Included by secore.inc.
 // A character can use another style's ANIMATION tables (an index into the [style] arrays of GuardDB, HittedDB, DodgeDB, BaseMovementDB, ...)
 // without changing its fighting style: stats, special ability, save, menus, mentoring keep the real style.

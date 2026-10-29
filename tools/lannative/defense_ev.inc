@@ -1,4 +1,3 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // defense_ev.inc - on_defense: defence outcome events (guard, guard break, absorb, parry, deflect, dodge, avoid) with the attack row, attacker,
 // defender and timing (API v2.20; included by content.inc after hitpre.inc: uses hitpre's hp_is_fchar / hp_comp).
 // Pure logic: defense_ev.h. docs\PLUGIN-API.md "Defence events".
@@ -10,7 +9,6 @@
 //   UDefenseComponent::NotifyAvoidSuccessful (own hook)   dodge / avoid, with the EAvoidType
 //   on_attack_start (secore)                              start time per attacker -> "time into the attack" when the defence happens
 // Nothing allocates; with no on_defense callback none of this is installed.
-// ---------------------------------------------------------------------------------------------------------------------
 #include "defense_ev.h"
 
 static const AbsApi *DE_API;                                       // the loader's own plugin API (de_init from content_init)

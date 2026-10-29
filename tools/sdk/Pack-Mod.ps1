@@ -1,11 +1,12 @@
-# Pack-Mod.ps1 - release package of ONE mod folder:<out>\<id>-<version>.zip with the folder <id>\ inside + files.sha256.
+# Pack-Mod.ps1 - release package of ONE mod folder: <out>\<id>-<version>.zip with the folder <id>\ inside + files.sha256.
 # Refuses (exit 1, nothing written) anything a mod must not ship: game files (loose .uasset/.uexp/.ubulk/.umap, .sig copies of the game's signature), saves (.sav),
-# .env / keys (the values of ABSOLVER_PAK_KEY / ABSOLVER_SAVE_KEY from <workspace>\.env, in text or hex, are searched in every file but never printed),
+# .env / keys (the ABSOLVER_PAK_KEY / ABSOLVER_SAVE_KEY values of the file given with -EnvFile or GLEAM_ENV_FILE, in text or hex, are searched in every file but never printed),
 # executables other than plugin.dll, personal data (tools\release\scan_personal.py). Then checks rows.json / records with the loader's own code (reccheck.exe).
-#   powershell -ExecutionPolicy Bypass -File tools\sdk\Pack-Mod.ps1 -ModDir examples\ContentMods\LuaDemo [-Out] [-Secret <extra text to refuse>]
-param([Parameter(Mandatory)][string]$ModDir, [string]$Out = '<repo>\work\packages', [string[]]$Secret = @())
+#   powershell -ExecutionPolicy Bypass -File tools\sdk\Pack-Mod.ps1 -ModDir examples\ContentMods\LuaDemo [-Out work\packages] [-EnvFile <key file>] [-Secret <extra text to refuse>]
+param([Parameter(Mandatory)][string]$ModDir, [string]$Out = '', [string[]]$Secret = @(), [string]$EnvFile = $env:GLEAM_ENV_FILE)
 $ErrorActionPreference = 'Stop'
-$repo = '<repo>'; $utf8 = New-Object Text.UTF8Encoding($false)
+$repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')); $utf8 = New-Object Text.UTF8Encoding($false)   # relative paths resolve against the repo root, wherever the script is started from
+if (-not $Out) { $Out = Join-Path $repo 'work\packages' }
 function PmLog($m) { Write-Host ("{0:HH:mm:ss} [pack] {1}" -f (Get-Date), $m) }
 if (-not [IO.Path]::IsPathRooted($Out)) { $Out = [IO.Path]::GetFullPath((Join-Path $repo $Out)) }          # .NET calls below need absolute paths
 $src = (Resolve-Path -LiteralPath $(if ([IO.Path]::IsPathRooted($ModDir)) { $ModDir } else { Join-Path $repo $ModDir })).Path
@@ -27,8 +28,10 @@ foreach ($f in $files) {
 }
 # secrets: values from the .env (never printed) + -Secret
 $sec = New-Object System.Collections.Generic.List[string]; foreach ($s in $Secret) { if ($s.Length -ge 8) { $sec.Add($s) } }
-$envf = '<workspace>\.env'
-if (Test-Path -LiteralPath $envf) { foreach ($l in [IO.File]::ReadAllLines($envf)) { if ($l -match '^\s*(ABSOLVER_PAK_KEY|ABSOLVER_SAVE_KEY)\s*=\s*"?([^"]+)"?\s*$') { $v = $Matches[2].Trim(); if ($v.Length -ge 8) { $sec.Add($v) } } } }
+$envf = $EnvFile      # -EnvFile or the GLEAM_ENV_FILE variable: a KEY=value file whose key values must not appear in a package; without one only -Secret values are searched
+if (-not $envf) { PmLog 'no -EnvFile / GLEAM_ENV_FILE: the key-file check is skipped (only -Secret values are searched)' }
+elseif (-not (Test-Path -LiteralPath $envf)) { PmLog "REFUSED: -EnvFile $envf does not exist"; exit 1 }
+if ($envf) { foreach ($l in [IO.File]::ReadAllLines($envf)) { if ($l -match '^\s*(ABSOLVER_PAK_KEY|ABSOLVER_SAVE_KEY)\s*=\s*"?([^"]+)"?\s*$') { $v = $Matches[2].Trim(); if ($v.Length -ge 8) { $sec.Add($v) } } } }
 if ($sec.Count) {
   foreach ($f in $files) {
     if ($f.Length -gt 512MB) { continue }
@@ -39,7 +42,7 @@ if ($sec.Count) {
 }
 if ($bad.Count) { PmLog "REFUSED: $($bad.Count) problem(s):"; $bad | ForEach-Object { PmLog "  $_" }; exit 1 }
 # stage <tmp>\Mods\<id>, check with the loader's code, scan for personal data, zip
-$tmp = Join-Path $repo "work\packages\stage-$($m.id)"; if (Test-Path -LiteralPath $tmp) { [IO.Directory]::Delete($tmp, $true) }
+$tmp = Join-Path ([IO.Path]::GetTempPath()) "gleam-stage-$($m.id)"; if (Test-Path -LiteralPath $tmp) { [IO.Directory]::Delete($tmp, $true) }
 $dst = Join-Path $tmp "Mods\$($m.id)"; New-Item -ItemType Directory -Force $dst | Out-Null
 & robocopy $src $dst /E /NFL /NDL /NJH /NJS /NP | Out-Null; if ($LASTEXITCODE -ge 8) { throw 'robocopy failed' }
 $rc = Join-Path $repo 'tools\lannative\test\reccheck.exe'

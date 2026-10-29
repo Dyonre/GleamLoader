@@ -1,5 +1,5 @@
 # Install-Mod.ps1 - install / remove ONE mod package (from Pack-Mod.ps1) into a Mods folder. One folder per mod: <Mods>\<id>\.
-#   install: powershell -ExecutionPolicy Bypass -File tools\sdk\Install-Mod.ps1 -Zip -ModsDir <Mods folder> [-AllowPlugin]
+#   install: powershell -ExecutionPolicy Bypass -File tools\sdk\Install-Mod.ps1 -Zip <package.zip> -ModsDir <Mods folder> [-AllowPlugin]
 #   remove : powershell -ExecutionPolicy Bypass -File tools\sdk\Install-Mod.ps1 -Remove LuaDemo -ModsDir <Mods folder>
 # Checks: the zip holds exactly one top folder <id> with a mod.json whose id matches, every file is listed in files.sha256 with the right hash (and nothing extra).
 # An existing <id> folder is MOVED to <Mods>\..\ModsReplaced\<id>-<time> (never deleted); -Remove moves it to ModsRemoved\. plugin.dll is copied but only enabled
@@ -7,7 +7,7 @@
 # A Mods folder inside the Steam game install (steamapps\common\Absolver) is refused.
 param([string]$Zip = '', [string]$Remove = '', [Parameter(Mandatory)][string]$ModsDir, [switch]$AllowPlugin)
 $ErrorActionPreference = 'Stop'
-$repo = '<repo>'; $utf8 = New-Object Text.UTF8Encoding($false)
+$repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')); $utf8 = New-Object Text.UTF8Encoding($false)   # relative -Zip / -ModsDir paths resolve against the repo root, wherever the script is started from
 function ImLog($m) { Write-Host ("{0:HH:mm:ss} [install] {1}" -f (Get-Date), $m) }
 $mods = [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($ModsDir)) { $ModsDir } else { Join-Path $repo $ModsDir }))
 if ($mods -match '\\steamapps\\common\\Absolver(\\|$)') { ImLog "REFUSED: $mods is the real game; install there only through the release gate"; exit 1 }
@@ -22,7 +22,7 @@ if ($Remove) {
 if (-not $Zip) { ImLog 'give -Zip or -Remove'; exit 2 }
 $zp = (Resolve-Path -LiteralPath $(if ([IO.Path]::IsPathRooted($Zip)) { $Zip } else { Join-Path $repo $Zip })).Path
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$tmp = Join-Path $repo "work\packages\unpack-$stamp"; New-Item -ItemType Directory -Force $tmp | Out-Null
+$tmp = Join-Path ([IO.Path]::GetTempPath()) "gleam-unpack-$stamp"; New-Item -ItemType Directory -Force $tmp | Out-Null
 try {
   [IO.Compression.ZipFile]::ExtractToDirectory($zp, $tmp)
   $tops = @(Get-ChildItem -LiteralPath $tmp -Force); if ($tops.Count -ne 1 -or -not $tops[0].PSIsContainer) { ImLog 'REFUSED: the zip must hold exactly one folder (the mod id)'; exit 1 }

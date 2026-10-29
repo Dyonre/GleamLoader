@@ -71,7 +71,7 @@ static int mr_target(const char *setting, const char *joinline, char *out, size_
     return 1;
 }
 
-// ---- fail-closed guard while the redirect is active -------------------------------------------------------------------------------------------------------------
+// Fail-closed guard while the redirect is active.
 // The game must not reach Sloclap's real servers while it runs against the LAN backend: every other Sloclap / absolver.com name fails to resolve, and the game's
 // socket connect / sendto refuse destinations that are not LAN-like. LAN-like = private ranges, loopback, link-local, carrier-grade NAT (Tailscale), 25/8 and 26/8
 // (Hamachi / Radmin VPN), multicast and the limited broadcast address.

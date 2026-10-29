@@ -84,10 +84,10 @@ int   L_clientrestart_post(void *pc, void *new_pawn, WeakPtr *old_pawn);   // af
 void  L_serverack_post(void *pc, void *pawn);                              // after ServerAcknowledgePossession_Implementation
 void  L_netcleanup_pre(void *pc, CleanupPair *leaving);                    // before APlayerController::OnNetCleanup
 void  L_netcleanup_post(CleanupPair *leaving);                             // after it
-void  L_periodic(void);                                                    // about twice a second
+void  L_periodic(void);                                                    // every 30 frames
 int   L_sweep_joiner_clones(void);                                         // one bounded live-object sweep after joining
 int   L_is_joiner(void);
-int   L_guard_leave(uint64_t *armed_at, uint64_t now_ms, const char *what);// double-press guard for F6/F7 on a joiner (1 = proceed)
+int   L_guard_leave(uint64_t *armed_at, uint64_t now_ms, const char *what);// double-press guard for menu Host/Join on a joiner (1 = proceed)
 void  L_summon(void);                                                      // host: bring joiners next to you
 void  L_state(void);                                                       // log a state dump
 int   L_ps_is_player(void *ps);                                            // is this the PlayerState of a real player (not NULL, not an NPC)? Server only
@@ -97,16 +97,15 @@ int   L_teleport_local(const float xyz[3]);                                 // m
 // pointer from the PARRIER's defense component. This inspects exactly that pointer, read-only. Returns 1 = the rewards pointer is valid,
 // 0 = it is not (the Forsaken bug), -1 = not inspectable (the reason is written into out). Never writes.
 int   L_parry_inspect(void *parrier, int fix_applied, char *out, int cap);
-// LAN-PvP flow, called every frame. While the loaded world is a 1v1/3v3 map AND this PC runs the duel's AAdversarialGameMode (the server),
-// sets the game's own GameInstance.m_bDebugFlow so the duel counts real connected players instead of the Sloclap list (which offline says 1 and
-// can never match two real players). Restores the original value when that stops being true. Returns 1 while the flag is held by us.
+// LAN-PvP flow, every frame: while this PC runs the duel game mode in a 1v1/3v3 map, holds GameInstance.m_bDebugFlow = 1 (why: lan_logic.c above
+// L_pvp_flow) and restores it afterwards. Returns 1 while the flag is held by us.
 int   L_pvp_flow(int enabled);
 // A 3v3 map waits for 2 teams x 3 players = 6 (ReadyToStartMatch needs NumPlayers >= that), so two players never start. With n in 1..2
 // the same hold-and-restore as the debug flow lowers AAdversarialGameMode.m_iNumPlayersPerTeam to n on this PC's 3v3 game mode only (n = 0 or 3 = leave
 // the game's value). Takes effect through L_pvp_flow, which the caller already runs every frame.
 void  L_set_perteam(int n);
 int   L_perteam_held(void);
-void  L_set_soloduel(int on);                      // 1 = a 1v1 map this PC hosts expects only one player (map testing without a second PC)
+void  L_set_soloduel(int on);                      // 1 = a 1v1 or 3v3 map this PC hosts expects only one player (map testing without a second PC)
 int   L_soloduel_held(void);
 // Called every frame on every PC. For 1v1 the game shows the end screen and continues the post-match flow only after the Sloclap backend has
 // delivered the match verdict into cBinder (+0x5C90); offline it never does, so IsWaitingForMatchValidation stays true and BPF_GetMatchResult stays
@@ -115,7 +114,6 @@ int   L_soloduel_held(void);
 // Returns 1 while the byte is held by us.
 int   L_pvp_result(int enabled);
 
-// ---------------------------------------------------------------------------------------------------------------------
 // NPC spawning. The host creates its own AAISpawner next to its character and
 // asks it to spawn an AI character from a chosen archetype asset; the game's own spawner code does the rest (class, controller, behaviour tree).
 // Works in every map where this PC is the server (open world, duel maps). Offsets are from the PDB structure dumps.

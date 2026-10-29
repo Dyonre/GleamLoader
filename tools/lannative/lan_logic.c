@@ -25,8 +25,6 @@ void L_init(const Api *api) {
     flow_reset();
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
-// helpers
 static int isa(void *obj, void *cls) {              // walk ClassPrivate -> SuperStruct
     if (!obj || !cls) return 0;
     void *c = PTR(obj, OFF_OBJ_CLASS);
@@ -45,7 +43,7 @@ static void *local_pc(void) {
     void *gi = PTR(w, OFF_W_GAMEINST);
     void **players = gi ? (void **)PTR(gi, OFF_GI_LOCALPLAYERS) : NULL;
     int player_count = gi ? I32(gi, OFF_GI_LOCALPLAYERS + 8) : 0;
-    // SwitchController updates this backlink.  The player-controller list can keep an old local controller after F7.
+    // SwitchController updates this backlink.  The player-controller list can keep an old local controller after a join.
     if (players && player_count > 0 && player_count <= 4 && isa(players[0], A->cls_localplayer())) {
         void *pc = PTR(players[0], OFF_PLAYER_CONTROLLER);
         if (pc && PTR(pc, OFF_PC_PLAYER) == players[0]) return pc;
@@ -82,7 +80,6 @@ static int host_zone(void *gi) {
     return (lp && isa(lp, A->cls_localplayer())) ? U8(lp, OFF_LP_ZONE) : -1;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // joiner: the host's pawn for us arrives as a SimulatedProxy, so walking is never sent. Make it an AutonomousProxy, and
 // remove the character we controlled before joining (joining does not reload the world, so it would stay alive and be hit).
 void L_clientrestart_pre(void *pc, WeakPtr *old_pawn) {
@@ -148,7 +145,6 @@ int L_sweep_joiner_clones(void) {
     return removed;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // host: remember joiners (by weak pointer, never raw), keep their respawn zone equal to ours, remove the body of one who leaves
 static Remote *find_remote(void *pc) {
     for (int i = 0; i < MAXREMOTE; i++) if (g_rem[i].used && A->weak_get(&g_rem[i].pc) == pc) return &g_rem[i];
@@ -249,7 +245,6 @@ void L_periodic(void) {
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 int L_guard_leave(uint64_t *armed_at, uint64_t now_ms, const char *what) {
     if (!L_is_joiner()) { *armed_at = 0; return 1; }
     if (*armed_at && now_ms - *armed_at <= 5000) { *armed_at = 0; return 1; }
@@ -290,7 +285,6 @@ int L_parry_inspect(void *parrier, int fix_applied, char *out, int cap) {
     return given;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // LAN-PvP flow. Offline, AAdversarialGameMode::UpdateNumConnectedPlayers / UpdateExpectedPlayer take their numbers from the Sloclap
 // "binder" list (0 other clients + 1 = 1) unless GameInstance.m_bDebugFlow (+0x6D90) is set. AAdversarialGameState::ArePlayersInitialized then
 // compares that 1 with the real player array (2 once a friend joins) and can never be true, so the match never leaves its waiting state and the
@@ -422,7 +416,7 @@ int L_pvp_flow(int enabled) {
                 if (!told) { told = 1; A->log("pvp flow: m_bDebugFlow is already %d - leaving it alone", g_flow_orig); }
             }
         } else if (U8(gi, OFF_GI_DEBUGFLOW) == 0) {
-            U8(gi, OFF_GI_DEBUGFLOW) = 1;                                  // something cleared it while we hold it
+            U8(gi, OFF_GI_DEBUGFLOW) = 1;
             A->log("pvp flow: m_bDebugFlow was cleared by the game - set again");
         }
     } else if (g_flow_held) {
@@ -433,7 +427,6 @@ int L_pvp_flow(int enabled) {
     return g_flow_held;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // Duel result (see lan_logic.h). The native winner calculation is correct offline (scores branch); only the backend's verdict is missing.
 static void *g_res_w, *g_res_gs, *g_res_gi, *g_res_held_binder;
 static int g_res_duel, g_res_held;
@@ -527,7 +520,6 @@ void L_state(void) {
         A->log("state: tracked joiner pc=%p pawn=%p", A->weak_get(&g_rem[i].pc), A->weak_get(&g_rem[i].pawn));
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // NPC spawning (see lan_logic.h)
 #define NPC_TRACK 256
 typedef struct { WeakPtr sp; int used, borrowed; float home[3]; } NpcSlot;       // borrowed = the level's own Calbot spawner (moved, to be put back)
@@ -711,7 +703,7 @@ int L_npc_spawn_at(const char *archetype_path, const char *label, const char *cl
     return 1;
 }
 
-int L_npc_unspawn(void *sp) {                                                   // one spawner (as returned in out_sp): UnSpawnAi, then destroy our own spawner / put the level's back
+int L_npc_unspawn(void *sp) {
     if (!N || !sp) return 0;
     NpcSlot *s = NULL;
     for (int i = 0; i < NPC_TRACK; i++) if (g_npc[i].used && A->weak_get(&g_npc[i].sp) == sp) s = &g_npc[i];

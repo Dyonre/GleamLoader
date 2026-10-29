@@ -1,5 +1,5 @@
 // Telemetry: world-change events, a session snapshot (frame time, per-connection net stats, per-player position/ping) written to
-// CSV files, and a log marker key. Read-only: it never writes into game memory. Everything here is pure helpers + the module's entry points;
+// CSV files, and a log marker key. Everything here is pure helpers + the module's entry points;
 // the engine reads live in lan_telemetry.c and go through the same Api table as lan_logic.c, so they can run against fake memory.
 #ifndef LANNATIVE_TELEMETRY_H
 #define LANNATIVE_TELEMETRY_H
@@ -109,7 +109,7 @@ void T_init(const Api *api, const TelCfg *cfg, uint32_t pid);
 void T_frame(float dt_seconds);     // every game frame (cheap accumulation only)
 void T_tick(uint64_t now_ms);       // every game frame; throttled inside (world check 2/s, snapshot every cfg interval)
 uint64_t T_quiet_ms(uint64_t now_ms); // how long no packet has arrived on any connection (0 = no network session). Read-only, per frame.
-void T_mark(void);                  // F8: a numbered marker line with position, for lining up two PCs' logs
+void T_mark(void);                  // menu item: a numbered marker line with position, for lining up two PCs' logs
 int  T_peers_now(void);             // remote peers right now (host: client connections; client: 1 with a server connection; else 0). Read-only.
 
 #endif

@@ -1,11 +1,10 @@
-// ---------------------------------------------------------------------------------------------------------------------
 // Server mode (included by lannative.c after plugins.inc): an unattended host. The game has no dedicated server (a "Game" target ignores -server), but it runs
 // without rendering (-nullrhi -nosound), and everything the title screen does can be done from code:
 //   UThePlainesGameInstance::BPF_LoadProfile(controller)  then  BPF_RequestLoadSave(saveName, controller)   -> the game loads the character and travels to the main world
-//   then the same travel as F6 ("<map>?listen") opens the listen server. Joiners need the join key (joinguard.h) like on any host.
+//   then the same travel as menu Host ("<map>?listen") opens the listen server. Joiners need the join key (joinguard.h) like on any host.
 // -LNClient makes the same unattended start but joins the address in ip.txt instead (a test bot: lets one PC test a join with two headless instances).
 // Turn on with  servermode = on  in LanNative\config.txt or -LNServer on the command line.  servermode_save = <character save name without .sav>  (required)
-//   servermode_map = <map URL>  (default: the co-op main world, as F6).  servermode_delay = seconds to wait before each step (default 12).
+//   servermode_map = <map URL>  (default: the co-op main world, as menu Host).  servermode_delay = seconds to wait before each step (default 12).
 // Start it with:  Absolver-Win64-Shipping.exe -NoEAC -nullrhi -nosound -NoSplash -LNServer     (see docs\HOSTING.md). Use a character that exists only for this: the game saves it.
 // Reflection layer (find_function / call_function with a parameter block) is the plugin API's; parameter layouts:
 //   BPF_LoadProfile(ObjectProperty _controller @0)   size 8;   BPF_RequestLoadSave(StrProperty _saveName @0, ObjectProperty _controller @16)   size 0x18
@@ -16,7 +15,7 @@ static void servermode_install(void) {
     char v[128] = ""; wchar_t path[MAX_PATH];
     int cfg = setting_get("servermode", L"servermode.txt", 0, v, sizeof v, path) && !_strnicmp(v, "on", 2);
     g_srv.on = cfg || cmdline_has_flag(GetCommandLineW(), L"lnserver");
-    if (cmdline_has_flag(GetCommandLineW(), L"lnclient")) g_srv.on = g_srv.join = 1;                       // test bot: same unattended start, then joins ip.txt like F7
+    if (cmdline_has_flag(GetCommandLineW(), L"lnclient")) g_srv.on = g_srv.join = 1;                       // test bot: same unattended start, then joins ip.txt like menu Join
     if (!g_srv.on) return;
     g_srv.delay_s = 12; wcscpy(g_srv.map, MAP_URL);
     if (setting_get("servermode_save", L"servermode_save.txt", 0, v, sizeof v, path)) snprintf(g_srv.save, sizeof g_srv.save, "%s", v);
@@ -62,7 +61,7 @@ static void servermode_tick(void) {
         } else if (g_srv.stage == 2) {                                                      // wait for the main world, then give it time to settle
             if (servermode_world_is("/Game/Maps/MainMap/MainMap_Main")) { g_srv.stage = 3; g_srv.due = now + step; logf_("server mode: the character is in the main world"); }
             else if (now - g_srv.started > 300000) { logf_("server mode: the main world did not load within 5 minutes - stopping"); g_srv.stage = 9; }
-        } else if (g_srv.stage == 3) {                                                      // open the listen server (same travel as F6)
+        } else if (g_srv.stage == 3) {                                                      // host (same travel as menu Host) or, with -LNClient, join ip.txt (same travel as menu Join)
             g_srv.stage = 4;
             if (g_srv.join) { wchar_t url[900]; if (read_join_url(url, 900)) { logf_("server mode: joining (same travel as F7)"); do_travel(url); } else logf_("server mode: no usable address in ip.txt"); }
             else { logf_("server mode: starting the listen server (%ls)", g_srv.map); jg_announce_host(); do_travel(g_srv.map); }

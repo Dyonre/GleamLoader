@@ -103,7 +103,6 @@ static void row_prefix(char *out, int cap, uint64_t now) {
     snprintf(out, (size_t)cap, "%s,%llu,%u,%s,%s", wall, (unsigned long long)now, g_pid, g_role, g_map);
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // world changes and session start/stop (checked twice a second)
 static void check_world(uint64_t now) {
     NetView v; net_view(&v);
@@ -139,7 +138,6 @@ static void check_world(uint64_t now) {
     g_in_session = in_session; g_peers = peers;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // duel match probe (read-only): what the duel's state machine is waiting for, on both PCs. Logs when anything changes, plus a heartbeat.
 
 // bounded append: snprintf reports the length it WANTED, so clamp it
@@ -191,7 +189,6 @@ static void match_probe(uint64_t now) {
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // snapshot rows
 static int collect_local_pcs(void *w, void **out, int cap) {      // live local controllers, compared by address only
     WeakPtr *list = (WeakPtr *)PTR(w, OFF_W_PCLIST);
@@ -284,7 +281,6 @@ static void snapshot(uint64_t now) {
     g_fsum = g_fmax = 0; g_fcount = 0;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 void T_frame(float dt) {
     if (C.level == TEL_OFF || !(dt >= 0.f && dt < 10.f)) return;     // also rejects NaN
     g_fsum += dt; g_fcount++;

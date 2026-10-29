@@ -1,5 +1,4 @@
-// ---------------------------------------------------------------------------------------------------------------------
-// crashrep.inc - safe mode, crash-loop guard and crash attribution (included by lannative.c before init()).
+// Safe mode, crash-loop guard and crash attribution (included by lannative.c before init()).
 //
 // Safe mode = the loader runs only its built-in features: no Mods\ (no paks, no rows.json, no plugins), no ProcessEvent hook. It is on when
 //   * Shift is held while the game starts, or the command line has -SESafe, or LanNative\safe.txt exists, or

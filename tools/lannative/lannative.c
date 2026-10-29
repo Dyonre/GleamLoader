@@ -7,7 +7,7 @@
 //
 // A hook on UGameEngine::Tick runs the loader's per-frame work on the game thread. Host ("<map>?listen") and join
 // (<ip>[:port][options] from LanNative\ip.txt) are F1 menu items.
-// The per-frame work runs in the game's own thread, inside a __try block, so it needs no timers and no callbacks from other threads.
+// The per-frame work runs inside a __try block, so it needs no timers and no callbacks from other threads.
 //
 // Offsets/RVAs are for Absolver 1.31 b1.25_575 (the Steam build); the loader verifies the original bytes before patching.
 #include <windows.h>
@@ -146,22 +146,21 @@ static uint64_t g_exe_size, g_self_base, g_self_size;   // for naming the caller
 static volatile uint64_t g_last_travel_ms;               // GetTickCount64 of the latest client-travel request (0 = none yet)
 static volatile uint64_t g_last_peer_change_ms;          // GetTickCount64 of the latest change in the number of connected peers (0 = none yet)
 static int g_peers_seen = -1;                            // peer count at the last look (-1 = never looked)
-static int g_pvpfix_on = 1;                              // LanNative\pvpfix.txt: send-back guard (on by default)
-static int g_pvpflow_on = 1;                             // LanNative\pvpfix.txt: duel debug flow (on by default, off with "guard")
+static int g_pvpfix_on = 1;                              // pvpfix setting: send-back guard (on by default)
+static int g_pvpflow_on = 1;                             // pvpfix setting: duel debug flow (on by default, off with "guard")
 static int g_flow_faults;                                // the duel flow switches itself off after 2 faults
 static int g_result_faults;                              // the duel result writer switches itself off after 2 faults
 static int g_parry_fix_applied;                          // the one-byte parry fix is in memory (for the parry observer's wording)
 static int g_parrylog_faults;                            // the parry observer switches itself off after 3 faults
 static unsigned g_parry_seen, g_parry_ok;                // parries observed / with a valid pointer
 
-// ---------------------------------------------------------------------------------------------------------------------
 // logging (plain Win32 so it is safe from DllMain too)
 static void logf_(const char *fmt, ...) {
     char msg[1024], line[1100];
     va_list ap; va_start(ap, fmt); vsnprintf(msg, sizeof msg, fmt, ap); va_end(ap);
     SYSTEMTIME t; GetLocalTime(&t);
     int n = snprintf(line, sizeof line, "[%02d:%02d:%02d.%03d] %s\r\n", t.wHour, t.wMinute, t.wSecond, t.wMilliseconds, msg);
-    static HANDLE s_log = INVALID_HANDLE_VALUE;                 // kept open for the whole run (no open/close per line); rotated at 4 MB when it is opened
+    static HANDLE s_log = INVALID_HANDLE_VALUE;                 // open for the whole run; rotated at 4 MB when opened
     EnterCriticalSection(&g_lock);
     if (s_log == INVALID_HANDLE_VALUE) {
         wchar_t path[MAX_PATH], old[MAX_PATH];
@@ -174,7 +173,6 @@ static void logf_(const char *fmt, ...) {
     LeaveCriticalSection(&g_lock);
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // inline hooks: copy the stolen bytes into a trampoline, then jmp [rip+0] to the replacement (14 bytes)
 static void emit_abs_jmp(uint8_t *p, uint64_t dest) { p[0] = 0xFF; p[1] = 0x25; p[2] = p[3] = p[4] = p[5] = 0; memcpy(p + 6, &dest, 8); }
 
@@ -202,7 +200,6 @@ static void *hook(int idx, void *replacement) {
     return tramp;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // game access
 typedef void (*Tick_t)(void *self, float dt, uint8_t idle);
 typedef void (*SetClientTravel_t)(void *engine, void *world, const wchar_t *url, int travelType);
@@ -214,7 +211,7 @@ static ClientRestart_t g_orig_clientrestart;
 static ServerAck_t g_orig_serverack;
 static NetCleanup_t g_orig_netcleanup;
 static SetClientTravel_t g_orig_settravel;
-typedef uint8_t (*ReturnPrev_t)(void *gi, void *arg);              // UThePlainesGameInstance::BPF_ReturnToPreviousMap
+typedef uint8_t (*ReturnPrev_t)(void *gi, void *arg);
 static ReturnPrev_t g_orig_returnprev;
 
 static void *engine(void) { return *(void **)(g_base + RVA_GENGINE); }
@@ -315,7 +312,6 @@ static const Api g_api = { api_weak_get, api_weak_set, api_destroy, api_cls_lp, 
                            api_object_path, api_cls_netdriver, api_cls_netconn, api_now_ms, api_csv, api_wall, api_cls_defense,
                            api_cls_advgm, api_cls_advgs, api_cls_advps, api_cls_fightingpc, api_fname_text, api_fname_waitingpost };
 
-// ---------------------------------------------------------------------------------------------------------------------
 // NPC spawning: the engine calls (the logic is in lan_logic.c). Every address is byte-checked once before the first use.
 typedef struct { uint32_t rva; const char *what; int n; uint8_t bytes[20]; } NpcCheck;
 static const NpcCheck g_npc_checks[] = {
@@ -543,7 +539,7 @@ static void zen_bootstrap(void) {
     if (nlevel >= 2) { use[0] = lastidx[0]; use[1] = lastidx[1]; nuse = 2; }
     else nuse = nlevel;
     if (nlevel > 2 && starts.total != g_zen_logged_total) logf_("zenarena: %d starts in the persistent level; using the last two (indexes %d and %d)", nlevel, use[0], use[1]);
-    if (starts.total != g_zen_logged_total) {                // log the full candidate list whenever the live count changes
+    if (starts.total != g_zen_logged_total) {
         g_zen_logged_total = starts.total;
         logf_("zenarena: %d live APlayerStart object(s), %d recorded, %d in this map's PersistentLevel (prefix %s)", starts.total, starts.count, nuse, prefix);
         for (int i = 0; i < starts.count; i++) {
@@ -618,7 +614,6 @@ static void ensure_console(void) {
     }
 }
 
-// first line of ip.txt = host ip or ip:port, optional second line = extra URL options (e.g. ?CheckPoint=...?zone=3)
 static int read_saved_join_options(wchar_t *out, int cap, unsigned *zone_out) {
     __try {
         void *w = world(), *gi = w ? *(void **)((uint8_t *)w + OFF_W_GAMEINST) : NULL;
@@ -649,7 +644,6 @@ static void goto_file(void) {
 }
 
 
-// ---------------------------------------------------------------------------------------------------------------------
 // F9 = free camera. Spawns an engine ACameraActor at a pose from LanNative\cam.txt ("x y z pitch yaw [roll]", UE cm and degrees; or "off") and points this PC's view
 // at it with APlayerController::SetViewTarget, so the camera passes through walls and ceilings and the character stays where it is (the shipping build strips the
 // engine's own ToggleDebugCamera). Every press re-reads the file, so a script can fly the camera through a map: write the file, press F9. "off" gives the view back
@@ -741,12 +735,11 @@ static void room_spawn_tick(void) {
         for (int i = 0; i < g_room_n; i++) if (!_stricmp(nm, g_room[i].map)) { idx = i; logf_("rooms: %s has a room spawn (%.0f, %.0f, %.0f)", nm, g_room[i].xyz[0], g_room[i].xyz[1], g_room[i].xyz[2]); break; }
     }
     if (idx < 0) return;
-    if (pawn && pawn != last_pawn) { last_pawn = pawn; due = now; }   // at once: a delayed move lets the character fall into the pit first
+    if (pawn && pawn != last_pawn) { last_pawn = pawn; due = now; }
     if (due && now >= due) { due = 0; __try { logf_("rooms: moving the character to the room spawn of %s -> %d", g_room[idx].map, L_teleport_local(g_room[idx].xyz)); } __except (EXCEPTION_EXECUTE_HANDLER) { logf_("rooms: teleport EXCEPTION 0x%08lX", GetExceptionCode()); } }
 }
 
 #ifdef LANNATIVE_SHOTRUNNER   // dev build only; never ship the screenshot/probe runner
-// ---------------------------------------------------------------------------------------------------------------------
 // Shot runner (map testing without keyboard input). When LanNative\shots.run exists, the loader reads LanNative\shots.txt (and deletes shots.run) and executes one
 // command per game frame, in the game thread, so it needs neither window focus nor the console:
 //   cam x y z pitch yaw [roll]   free camera pose (as F9)       exec <console command>   e.g. exec r.EyeAdaptationQuality 0
@@ -967,6 +960,7 @@ static void shotrunner_tick(void) {
 static void shotrunner_tick(void) {}
 #endif
 
+// first line of ip.txt = host ip or ip:port, optional second line = extra URL options (e.g. ?CheckPoint=...?zone=3)
 static int read_join_url(wchar_t *out, int cap) {
     wchar_t path[MAX_PATH];
     swprintf(path, MAX_PATH, L"%sip.txt", g_dir);
@@ -1047,7 +1041,7 @@ static int parryfix_enabled(void) {
     return 1;
 }
 
-// LanNative\pvpfix.txt: "on" (default) = send-back guard + duel debug flow, "guard" = send-back guard only, "off" = neither.
+// pvpfix (config.txt key, or LanNative\pvpfix.txt): "on" (default) = send-back guard + duel debug flow, "guard" = send-back guard only, "off" = neither.
 // Returns 0 = off, 1 = guard only, 2 = guard + flow.
 static int pvpfix_mode(void) {
     wchar_t path[MAX_PATH];
@@ -1060,7 +1054,7 @@ static int pvpfix_mode(void) {
     else logf_("pvp: guard + duel flow enabled by %ls", path);
     return 2;
 }
-// LanNative\perteam.txt: players per team for 3v3 maps (default 1 = a 3v3 map starts with 2 players; 2 = starts with 4; 3 or "off" = the game's own 6).
+// perteam (config.txt key, or LanNative\perteam.txt): players per team for 3v3 maps (default 1 = a 3v3 map starts with 2 players; 2 = starts with 4; 3 or "off" = the game's own 6).
 static int read_perteam(void) {
     wchar_t path[MAX_PATH];
     char value[32] = "";
@@ -1093,7 +1087,7 @@ static int read_lan(void) {
     return 0;
 }
 
-// LanNative\autoleave.txt: "on" (default) or "off". In a duel map, when the other player's connection is gone, go back to your own game like F6 does.
+// autoleave (config.txt key, or LanNative\autoleave.txt): "on" (default) or "off". In a duel map, when the other player's connection is gone, travel to MAP_URL (as menu Host does).
 static int read_autoleave(void) {
     wchar_t path[MAX_PATH];
     char value[32] = "";
@@ -1171,7 +1165,6 @@ static void apply_patch_table(void) {
         }
     }
 }
-// ---------------------------------------------------------------------------------------------------------------------
 // the per-frame work (game thread)
 static int key_edge(int vk, int *prev) {
     int down = (GetAsyncKeyState(vk) & 0x8000) != 0;
@@ -1219,7 +1212,6 @@ static int note_peers(uint64_t now) {
     return 1;
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // Host address. The game's socket code reads "-MULTIHOME=<ip>" from the command line buffer when a listen server picks the address it binds
 // (ISocketSubsystem::GetLocalHostAddr). Without it the host binds every adapter, which already accepts a joiner that connects to the host's Radmin/VPN
 // address; with it the host binds exactly that one address. hostip.txt lists the choices (first valid line = default, "auto" = every adapter); the
@@ -1244,7 +1236,7 @@ static void hostip_load(void) {
 }
 
 // The DLL is loaded before the engine parses the command line (FCommandLine::bIsInitialized is still 0 then), so the
-// original command line is saved from the first game ticks instead, once the flag is set. Quiet until then; tries every tick for ~50 s at most.
+// original command line is saved from the first game ticks instead, once the flag is set. Quiet until then; tries every tick for 3000 ticks at most.
 static int g_cmd_tries;
 static void cmdline_try_save(void) {
     if (g_cmd_saved || g_cmd_tries > 3000) return;
@@ -1290,7 +1282,6 @@ static void hostip_on_travel(const wchar_t *url) {
     if (listen) logf_("host address: this listen server binds %s%s", strcmp(g_cmd_applied, "auto") ? g_cmd_applied : "every adapter (auto)", strcmp(g_cmd_applied, "auto") ? " only (-MULTIHOME)" : "");
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 // In-game menu (state machine and layout: menu.h; this gathers key edges, runs the chosen action and draws the text)
 static int g_menu_on = 1, g_menu_faults, g_draw_faults, g_perteam_cfg = 1, g_autoleave_on = 1, g_solo_cfg;
 static Menu g_menu;
@@ -1804,7 +1795,7 @@ typedef void (*PostRender_t)(void *viewport, void *canvas);
 static PostRender_t g_orig_postrender;
 
 static void draw_menu(void *canvas) {
-    static const uint8_t expect[10] = { 0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83, 0xEC, 0x70 };   // UCanvas::DrawText prologue (verified once)
+    static const uint8_t expect[10] = { 0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83, 0xEC, 0x70 };   // UCanvas::DrawText prologue
     static int checked, usable;
     if (!checked) {
         checked = 1;
@@ -1859,7 +1850,7 @@ static void autoleave_tick(uint64_t now) {
         else return;                                                                       // not readable yet: try next frame
     }
     int peers = T_peers_now();
-    if (peers > 0 && T_quiet_ms(now) >= AUTOLEAVE_QUIET_MS) peers = 0;       // connected on paper, but nothing has arrived for 10 s: the other side is gone
+    if (peers > 0 && T_quiet_ms(now) >= AUTOLEAVE_QUIET_MS) peers = 0;       // connected on paper, but nothing has arrived for AUTOLEAVE_QUIET_MS: the other side is gone
     int act = autoleave_step(&g_al, now, peers, g_al_duel, g_last_travel_ms);
     if (act == AL_ANNOUNCE) logf_("autoleave: the other player's connection is gone in this duel map - returning to your own game in %llu s unless something else is already travelling", AUTOLEAVE_GRACE_MS / 1000);
     else if (act == AL_LEAVE) { logf_("autoleave: leaving the duel map now (same travel as F6)"); do_travel(MAP_URL); }
@@ -1971,7 +1962,7 @@ static void log_call_chain(const char *label) {
     logf_("%s: call chain (innermost first): %s", label, shown ? chain : "(no frames in the game image)");
 }
 
-// Logs every client-travel request (F6/F7, the console's open/travel, and the game's own travels such as returning to a previous map)
+// Logs every client-travel request (menu Host/Join, the console's open/travel, and the game's own travels such as returning to a previous map)
 // with the URL and where it was called from, then lets it proceed unchanged. It also timestamps the request for the LAN-PvP guard.
 static void hk_settravel(void *eng, void *wld, const wchar_t *url, int type) {
     void *ret = _ReturnAddress();
@@ -2024,9 +2015,6 @@ static uint8_t hk_returnprev(void *gi, void *arg) {
     return g_orig_returnprev(gi, arg);
 }
 
-// Parry observer (read-only). NotifyParrySuccessful(this = the parried ATTACKER's defense component, delay, actor = the PARRIER, ...) reads the
-// ParryPropertyDB weak pointer from the PARRIER's defense component (parrier+0x1BE8, then +0x1FC or, with the fix, +0x1F4), so
-// L_parry_inspect inspects the parrier's component, not `this`.
 // Duel score. AThePlainesGameMode::Killed calls killerPS->ScoreKill(victimPS, 1) for every kill by a player; when the victim is an NPC its AI controller
 // has no PlayerState, so the victim is NULL and AAdversarialPlayerState::ScoreKill still records a kill in m_Scores - which is what the 1v1 / 3v3 match
 // score, the round result and the recap count. This drops every kill whose victim is not a real player's PlayerState.
@@ -2050,6 +2038,9 @@ static void hk_scorekill(void *ps, void *victim, int points) {
     g_orig_scorekill(ps, victim, points);
 }
 
+// Parry observer (read-only). NotifyParrySuccessful(this = the parried ATTACKER's defense component, delay, actor = the PARRIER, ...) reads the
+// ParryPropertyDB weak pointer from the PARRIER's defense component (parrier+0x1BE8, then +0x1FC or, with the fix, +0x1F4), so
+// L_parry_inspect inspects the parrier's component, not `this`.
 typedef void (*NotifyParry_t)(void *comp, float delay, void *actor, uint64_t name, uint8_t flag);
 static NotifyParry_t g_orig_notifyparry;
 static void hk_notifyparry(void *comp, float delay, void *actor, uint64_t name, uint8_t flag) {
@@ -2095,7 +2086,6 @@ static void hk_tick(void *self, float dt, uint8_t idle) {
     g_orig_tick(self, dt, idle);
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
 static uint64_t image_size(const uint8_t *base) {          // PE SizeOfImage of a loaded module, 0 if the header looks wrong
     __try {
         if (base[0] != 'M' || base[1] != 'Z') return 0;
@@ -2171,7 +2161,7 @@ static void init(HMODULE self) {
     config_load();
     matchredir_install();
     if (parryfix_enabled()) apply_parryfix();
-    apply_patch_table();                                    // generic patch table: config 'patches = on' (default off)
+    apply_patch_table();
     L_init(&g_api);
     L_npc_init(&g_npcapi);
     read_telemetry_cfg();

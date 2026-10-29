@@ -55,8 +55,8 @@ static int pvp_should_suppress(int enabled, int duel_map, uint64_t now_ms, uint6
 
 static int pvp_path_is_3v3(const char *world_path) { return pvp_ci_contains(world_path, "/MainMap_GameModes/3v3/"); }
 
-// Auto-leave. In a duel map the offline game never notices that the other player left: the body stays until F6. When a peer WAS connected
-// in this duel world and the connection count has been 0 for AUTOLEAVE_GRACE_MS, this asks for the same travel F6 does. It never fires when a
+// Auto-leave. In a duel map the offline game never notices that the other player left: the body stays until menu Host. When a peer WAS connected
+// in this duel world and the connection count has been 0 for AUTOLEAVE_GRACE_MS, this asks for the same travel menu Host does. It never fires when a
 // travel was requested after the peer was last seen (the player is already leaving), and starts over in every new world.
 #define AUTOLEAVE_GRACE_MS 3000ull
 #define AUTOLEAVE_QUIET_MS 10000ull   // a connection that has received nothing for this long counts as gone (the game itself waits ~30 s)

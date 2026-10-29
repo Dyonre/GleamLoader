@@ -55,8 +55,8 @@ $entry = switch ($Kind) {
   "styles": [
     {
       "id": "@@ID@@",
-      "db": "/Game/DB/FightingStyles/LostProspect.LostProspect",
-      "style_id": 2,
+      "db": "REPLACE_ME: the path of your own FightingStyleDB asset, shipped in a pak",
+      "style_id": 6,
       "index": 5
     }
   ]
@@ -86,3 +86,7 @@ function W($rel, $text) { [IO.File]::WriteAllText((Join-Path $dir $rel), (($text
 W "content\$kindDir\$id.json" $entry; W 'mod.json' $mod
 if ($RowsJson) { W 'rows.json' $rows }
 Write-Host "created $dir (kind $Kind, id $id). Copy it to <game>\Mods\ ; check LanNative\lannative.log for 'content:' lines and F2 'Content'."
+if ($Kind -eq 'styles') {
+    Write-Host "NOTE: this style entry is a template. The loader skips it as INVALID until you replace 'db' with your own FightingStyleDB asset (in a pak in this mod folder)."
+    Write-Host "      A new style also needs LanNative\symbols.bin and the style unlocked in your save; new style ids start at 6. See docs/sdk/README.md section 3."
+}
